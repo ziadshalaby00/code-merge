@@ -18,9 +18,13 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
 
       let added = 0;
       let skipped = 0;
+      let lastAddedLabel = '';
       const warnings = new Set<string>();
+      const successfulWorkspaces: vscode.Uri[] = [];
 
       for (const target of targets) {
+        // Stat with guard: file may have been deleted/moved since the
+        // context menu was opened.
         let stat: vscode.FileStat;
         try {
           stat = await vscode.workspace.fs.stat(target);
@@ -60,7 +64,6 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
         }
 
         const content = Buffer.from(bytes).toString('utf8');
-
         if (content.includes('\0')) {
           warnings.add('Binary files are not supported and were skipped.');
           skipped++;
@@ -68,29 +71,66 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
         }
 
         const ext = path.extname(target.fsPath).slice(1) || 'txt';
-
-        store.setActiveWorkspace(workspaceFolder.uri);
+        const relativePath = toRelative(target);
 
         const ok = store.add({
           id: newId(),
           kind: 'file',
           fsPath: target.fsPath,
-          relativePath: toRelative(target),
+          relativePath,
           workspaceFolder: workspaceFolder.uri.toString(),
           language: ext,
           content,
           addedAt: Date.now(),
         });
 
-        ok ? added++ : skipped++;
+        if (ok) {
+          added++;
+          lastAddedLabel = relativePath;
+          if (
+            !successfulWorkspaces.some(
+              w => w.toString() === workspaceFolder.uri.toString()
+            )
+          ) {
+            successfulWorkspaces.push(workspaceFolder.uri);
+          }
+        } else {
+          skipped++;
+        }
+      }
+
+      // Only switch the active workspace once we know something was added.
+      // Picks the workspace of the first successfully added file so
+      // subsequent preview/copy target the right project.
+      if (successfulWorkspaces.length) {
+        store.setActiveWorkspace(successfulWorkspaces[0]);
       }
 
       for (const w of warnings) {
         vscode.window.showWarningMessage(`Code Merge: ${w}`);
       }
 
-      const msg = `Code Merge: added ${added}, skipped ${skipped} (duplicates/folders/errors)`;
-      vscode.window.setStatusBarMessage(msg, 3000);
+      if (added && !skipped) {
+        const msg =
+          added === 1
+            ? `Code Merge: added ${lastAddedLabel}`
+            : `Code Merge: added ${added} files`;
+        vscode.window.setStatusBarMessage(msg, 3000);
+        return;
+      }
+
+      if (!added && skipped) {
+        vscode.window.setStatusBarMessage(
+          `Code Merge: nothing added (${skipped} skipped)`,
+          3000
+        );
+        return;
+      }
+
+      vscode.window.setStatusBarMessage(
+        `Code Merge: added ${added}, skipped ${skipped} (duplicates/folders/errors)`,
+        3000
+      );
     }
   );
 }

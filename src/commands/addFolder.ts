@@ -71,6 +71,17 @@ async function collectFiles(
   return result;
 }
 
+async function confirmIgnoredRoot(
+  folderName: string
+): Promise<boolean> {
+  const pick = await vscode.window.showWarningMessage(
+    `Code Merge: "${folderName}" is normally ignored. Add it anyway?`,
+    { modal: true },
+    'Add Anyway'
+  );
+  return pick === 'Add Anyway';
+}
+
 export function addFolderCommand(store: MergeStore): vscode.Disposable {
   return vscode.commands.registerCommand(
     'code-merge.addFolder',
@@ -80,8 +91,25 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
         return;
       }
 
-      const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+      // Verify the target is actually a directory before walking it.
+      let stat: vscode.FileStat;
+      try {
+        stat = await vscode.workspace.fs.stat(uri);
+      } catch {
+        vscode.window.showWarningMessage(
+          'Code Merge: cannot access the selected folder.'
+        );
+        return;
+      }
 
+      if (stat.type !== vscode.FileType.Directory) {
+        vscode.window.showWarningMessage(
+          'Code Merge: the selection is not a folder.'
+        );
+        return;
+      }
+
+      const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
       if (!workspaceFolder) {
         vscode.window.showWarningMessage(
           'Code Merge: the selected folder is not inside a workspace.'
@@ -89,12 +117,20 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
         return;
       }
 
-      store.setActiveWorkspace(workspaceFolder.uri);
+      // If the root folder itself would be ignored (node_modules, dist, etc.),
+      // ask the user before scanning it.
+      const rootName = path.basename(uri.fsPath);
+      if (shouldSkipDir(rootName)) {
+        const proceed = await confirmIgnoredRoot(rootName);
+        if (!proceed) {
+          return;
+        }
+      }
 
       await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: 'Code Merge: scanning folder…',
+          title: `Code Merge: scanning "${rootName}"…`,
           cancellable: true,
         },
         async (progress, token) => {
@@ -106,15 +142,14 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
 
           if (!files.length) {
             vscode.window.showInformationMessage(
-              'Code Merge: no suitable files found in this folder.'
+              `Code Merge: no suitable files found in "${rootName}".`
             );
             return;
           }
 
-          const readErrors: string[] = [];
-          let total = 0;
-
           const pending: MergeItem[] = [];
+          let readErrors = 0;
+          let totalChars = 0;
 
           for (let i = 0; i < files.length; i++) {
             if (token.isCancellationRequested) {
@@ -133,7 +168,7 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
               const content = Buffer.from(bytes).toString('utf8');
 
               if (content.includes('\u0000')) {
-                readErrors.push(path.basename(f.uri.fsPath));
+                readErrors++;
                 continue;
               }
 
@@ -150,18 +185,35 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
                 addedAt: Date.now(),
               });
 
-              total += content.length;
+              totalChars += content.length;
             } catch {
-              readErrors.push(path.basename(f.uri.fsPath));
+              readErrors++;
             }
           }
 
-          const { added, skipped } = store.addMany(pending);
-          const skippedTotal = skipped + readErrors.length;
+          if (token.isCancellationRequested) {
+            vscode.window.setStatusBarMessage(
+              'Code Merge: folder scan cancelled.',
+              3000
+            );
+            return;
+          }
 
-          const folderName = path.basename(uri.fsPath);
+          if (!pending.length) {
+            vscode.window.showInformationMessage(
+              `Code Merge: no readable files in "${rootName}".`
+            );
+            return;
+          }
+
+          // Only switch active workspace once we know we'll add something.
+          store.setActiveWorkspace(workspaceFolder.uri);
+
+          const { added, skipped } = store.addMany(pending);
+          const skippedTotal = skipped + readErrors;
+
           vscode.window.setStatusBarMessage(
-            `Code Merge: "${folderName}" → added ${added}, skipped ${skippedTotal} (${total.toLocaleString()} chars)`,
+            `Code Merge: "${rootName}" → added ${added}, skipped ${skippedTotal} (${totalChars.toLocaleString()} chars)`,
             4000
           );
         }

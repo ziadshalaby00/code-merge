@@ -1,71 +1,150 @@
-# code-merge README
+# Code Merge
 
-This is the README for your extension "code-merge". After writing up a brief description, we recommend including the following sections.
+> Select files, folders, or code snippets and merge them into a single
+> markdown file — with a project tree and per-file headers. Perfect for
+> feeding context to LLMs (ChatGPT, Claude, Copilot) or sharing code
+> snapshots with your team.
 
-## Features
-
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
-
-## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
+| | |
+|---|---|
+| ![Screenshot 4](images/s4.png) | ![Screenshot 1](images/s1.png) |
+| ![Screenshot 2](images/s2.png) | ![Screenshot 3](images/s3.png) |
 
 ---
 
-## Following extension guidelines
+## ✨ Features
 
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
+- **📁 Add files** — right-click any file in the Explorer, or use the keyboard.
+- **📂 Add folders** — recursively scan a folder with smart ignore rules
+  (`node_modules`, `.git`, `dist`, `.venv`, binaries, lockfiles, …).
+- **✂️ Add selections** — grab a range of lines from the current editor
+  (supports multi-cursor with `Ctrl+D`).
+- **🌲 Project tree** — every merged output starts with an ASCII tree of
+  the selected items, including line ranges for selections.
+- **📝 Auto-generated `merged.md`** — written to `.code-merge/merged.md`
+  inside your workspace on every change.
+- **📋 One-click copy** — copy the entire merged content to the clipboard.
+- **🔒 Workspace isolation** — each workspace folder gets its own
+  `.code-merge/merged.md` and its own item list. Switching between
+  multi-root workspaces is seamless.
+- **⚡ Debounced writes** — batches rapid changes so disk I/O stays low.
+- **💾 Persistent state** — selections survive VS Code restarts.
 
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
+---
 
-## Working with Markdown
+## 🚀 Usage
 
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
+### Adding items
 
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
+| Action | How |
+|---|---|
+| Add a file | Right-click file in Explorer → **Code Merge: Add File** |
+| Add a folder | Right-click folder in Explorer → **Code Merge: Add Folder** |
+| Add a selection | Select code → right-click → **Code Merge: Add Selection** |
 
-## For more information
+### Viewing & exporting
 
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
+Open the **Code Merge** view from the Activity Bar to see all selected
+items. From there you can:
 
-**Enjoy!**
+- **Preview** (`$(open-preview)`) — opens `.code-merge/merged.md` beside
+  the current editor.
+- **Copy** (`$(copy)`) — copies the full merged output to the clipboard.
+- **Clear** (`$(clear-all)`) — removes every item for the current
+  workspace.
+
+Clicking any item in the tree opens its source file.
+
+### Example output
+
+````markdown
+// ────────────────────────────────────────────────────────────
+// Project structure — my-api
+// ────────────────────────────────────────────────────────────
+
+my-api/
+├── src/
+│   ├── index.ts  [full]
+│   ├── routes/
+│   │   └── auth.ts  [L10-L25, L40-L50]
+│   └── db.ts  [full]
+└── README.md  [full]
+
+// ────────────────────────────────────────────────────────────
+// src/index.ts (typescript) — file
+// ────────────────────────────────────────────────────────────
+import express from 'express';
+...
+
+// ────────────────────────────────────────────────────────────
+// src/routes/auth.ts [L10-L25] (typescript) — selection
+// ────────────────────────────────────────────────────────────
+export function login(req, res) {
+  ...
+}
+````
+
+---
+
+## ⌨️ Keyboard shortcuts
+
+| Command | Windows / Linux | macOS |
+|---|---|---|
+| Add Selection | `Ctrl+Alt+M` | `Cmd+Alt+M` |
+| Add File | `Ctrl+Alt+F` | `Cmd+Alt+F` |
+| Add Folder | `Ctrl+Alt+Shift+F` | `Cmd+Alt+Shift+F` |
+| Open Preview | `Ctrl+Alt+P` | `Cmd+Alt+P` |
+| Copy Merged Content | `Ctrl+Alt+C` | `Cmd+Alt+C` |
+
+All shortcuts can be rebound from **Keyboard Shortcuts** (`Ctrl+K Ctrl+S`).
+
+---
+
+## ⚙️ Configuration
+
+No settings yet. Ignore rules are built-in and cover:
+
+- **Directories** — `node_modules`, `.git`, `dist`, `build`, `out`,
+  `coverage`, `target`, `.venv`, `__pycache__`, `.next`, `.cache`, …  
+  (`.github`, `.gitlab`, and `.devcontainer` are *not* ignored so CI
+  configs can be merged.)
+- **Extensions** — images, audio/video, archives, binaries, fonts,
+  documents, databases, logs.
+- **Filenames** — `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`,
+  `Cargo.lock`, `.env`, `.env.*`, etc.
+- **Size** — files larger than **5 MB** are skipped automatically.
+
+---
+
+## 📋 Requirements
+
+- VS Code **1.85.0** or newer.
+- No external dependencies.
+
+---
+
+## 🐛 Known issues
+
+- `.gitignore` files inside the workspace are **not** respected yet —
+  only the built-in ignore rules apply.
+- Very large folders (10,000+ files) may take a few seconds to scan.
+- Binary detection is heuristic (`\0` byte check) — rare false positives
+  are possible for UTF-16 files.
+
+---
+
+## 🤝 Contributing
+
+Issues and PRs welcome at
+[github.com/ziadshalaby00/code-merge](https://github.com/ziadshalaby00/code-merge).
+
+To develop locally:
+
+```bash
+git clone https://github.com/ziadshalaby00/code-merge.git
+cd code-merge
+npm install
+npm run watch
+```
+
+Then press **F5** in VS Code to launch the Extension Development Host.

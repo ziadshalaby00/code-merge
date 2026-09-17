@@ -1,13 +1,33 @@
 {
   "name": "code-merge",
-  "displayName": "code merge",
-  "description": "Select files or code snippets and merge them into a single file with headers showing file path and line range",
-  "version": "0.0.1",
+  "displayName": "Code Merge",
+  "description": "Select files, folders, or code selections and merge them into a single markdown file with a project tree and per-file headers.",
+  "version": "0.1.0",
+  "publisher": "ziadshalaby00",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ziadshalaby00/code-merge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ziadshalaby00/code-merge/issues"
+  },
+  "homepage": "https://github.com/ziadshalaby00/code-merge#readme",
   "engines": {
-    "vscode": "^1.138.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Notebooks"
+  ],
+  "keywords": [
+    "merge",
+    "concatenate",
+    "context",
+    "llm",
+    "ai",
+    "markdown",
+    "copy"
   ],
   "activationEvents": [],
   "main": "./dist/extension.js",
@@ -19,41 +39,41 @@
         "icon": "$(file-add)"
       },
       {
+        "command": "code-merge.addFolder",
+        "title": "Code Merge: Add Folder",
+        "icon": "$(folder-opened)"
+      },
+      {
         "command": "code-merge.addSelection",
         "title": "Code Merge: Add Selection",
-        "icon": "$(selection)"
+        "icon": "$(symbol-snippet)"
       },
       {
         "command": "code-merge.deleteItem",
-        "title": "Delete Item",
+        "title": "Code Merge: Delete Item",
         "icon": "$(trash)"
       },
       {
         "command": "code-merge.openPreview",
-        "title": "Open Merged Preview",
+        "title": "Code Merge: Open Merged Preview",
         "icon": "$(open-preview)"
       },
       {
         "command": "code-merge.copyAll",
-        "title": "Copy Merged Content",
+        "title": "Code Merge: Copy Merged Content",
         "icon": "$(copy)"
       },
       {
         "command": "code-merge.clearAll",
-        "title": "Clear All",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "code-merge.addFolder",
-        "title": "Code Merge: Add Folder",
-        "icon": "$(folder-opened)"
+        "title": "Code Merge: Clear All",
+        "icon": "$(clear-all)"
       }
     ],
     "menus": {
       "explorer/context": [
         {
           "command": "code-merge.addFile",
-          "when": "resourceScheme == file",
+          "when": "resourceScheme == file && !explorerResourceIsFolder",
           "group": "navigation@9"
         },
         {
@@ -96,7 +116,7 @@
       "editor/title": [
         {
           "command": "code-merge.copyAll",
-          "when": "resourceFilename == merged.md && resourceDirname =~ /code-merge/",
+          "when": "resourceFilename == merged.md && resourceDirname =~ /\\.code-merge$/",
           "group": "navigation@1"
         }
       ]
@@ -145,7 +165,8 @@
         {
           "id": "codeMerge.items",
           "name": "Selected Items",
-          "icon": "$(list-tree)"
+          "icon": "$(list-tree)",
+          "contextualTitle": "Code Merge"
         }
       ]
     }
@@ -165,19 +186,15 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/mocha": "^10.0.10",
-    "@types/node": "^24.13.5",
-    "@types/vscode": "^1.138.0",
-    "@vscode/test-cli": "^0.0.15",
-    "@vscode/test-electron": "^3.0.0",
-    "esbuild": "^0.28.1",
-    "eslint": "^10.5.0",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-cli": "^0.0.9",
+    "@vscode/test-electron": "^2.3.9",
+    "esbuild": "^0.20.0",
+    "eslint": "^9.0.0",
     "npm-run-all": "^4.1.5",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.61.1"
-  },
-  "overrides": {
-    "diff": "^8.0.4",
-    "serialize-javascript": "^7.0.6"
+    "typescript": "^5.4.0",
+    "typescript-eslint": "^8.0.0"
   }
 }

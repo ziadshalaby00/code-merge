@@ -3,8 +3,42 @@ import { MergeItem } from '../core/types';
 interface TreeNode {
   name: string;
   children: Map<string, TreeNode>;
-  isFile: boolean;
-  ranges: string[];
+  /** True if a full-file item exists at this path. */
+  hasFullFile: boolean;
+  /** Selections pointing at this path, formatted as `L{start}-L{end}`. */
+  ranges: { start: number; end: number }[];
+}
+
+function sortRanges(
+  ranges: { start: number; end: number }[]
+): { start: number; end: number }[] {
+  return [...ranges].sort((a, b) => {
+    if (a.start !== b.start) {
+      return a.start - b.start;
+    }
+    return a.end - b.end;
+  });
+}
+
+function formatRanges(
+  hasFullFile: boolean,
+  ranges: { start: number; end: number }[]
+): string {
+  const parts: string[] = [];
+
+  if (hasFullFile) {
+    parts.push('full');
+  }
+
+  for (const r of sortRanges(ranges)) {
+    parts.push(`L${r.start}-L${r.end}`);
+  }
+
+  if (!parts.length) {
+    return '';
+  }
+
+  return `  [${parts.join(', ')}]`;
 }
 
 export function renderTree(
@@ -14,7 +48,7 @@ export function renderTree(
   const root: TreeNode = {
     name: '',
     children: new Map(),
-    isFile: false,
+    hasFullFile: false,
     ranges: [],
   };
 
@@ -28,15 +62,20 @@ export function renderTree(
         node.children.set(part, {
           name: part,
           children: new Map(),
-          isFile: false,
+          hasFullFile: false,
           ranges: [],
         });
       }
       node = node.children.get(part)!;
+
       if (i === parts.length - 1) {
-        node.isFile = true;
-        if (item.range) {
-          node.ranges.push(`L${item.range.startLine}-L${item.range.endLine}`);
+        if (item.kind === 'file') {
+          node.hasFullFile = true;
+        } else if (item.range) {
+          node.ranges.push({
+            start: item.range.startLine,
+            end: item.range.endLine,
+          });
         }
       }
     }
@@ -59,9 +98,7 @@ export function renderTree(
       const connector = last ? '└── ' : '├── ';
       const isFolder = child.children.size > 0;
       const folder = isFolder ? '/' : '';
-      const ranges = child.ranges.length
-        ? `  [${child.ranges.join(', ')}]`
-        : '';
+      const ranges = formatRanges(child.hasFullFile, child.ranges);
 
       lines.push(`${prefix}${connector}${child.name}${folder}${ranges}`);
       walk(child, prefix + (last ? '    ' : '│   '));
