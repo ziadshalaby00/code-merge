@@ -5,13 +5,19 @@
 > feeding context to LLMs (ChatGPT, Claude, Copilot) or sharing code
 > snapshots with your team.
 
+
+[![GitHub](https://img.shields.io/badge/GitHub-ziadshalaby00-181717?logo=github)](https://github.com/ziadshalaby00/code-merge)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![VS Code](https://img.shields.io/badge/VS%20Code-1.85%2B-blue?logo=visualstudiocode)](https://code.visualstudio.com/)
+
+
 <p>
-  <img src="./images/s4.png" width="48%">
-  <img src="./images/s1.png" width="48%">
+  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/s4.png" width="48%" alt="Copy merged content">
+  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/s1.png" width="48%" alt="Add folder to merge">
 </p>
 <p>
-  <img src="./images/s2.png" width="48%">
-  <img src="./images/s3.png" width="48%">
+  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/s2.png" width="48%" alt="Preview merged output">
+  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/s3.png" width="48%" alt="Add selection">
 </p>
 
 ---
