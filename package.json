@@ -3,6 +3,7 @@
   "displayName": "Code Merge",
   "description": "Select files, folders, or code selections and merge them into a single markdown file with a project tree and per-file headers.",
   "version": "0.1.0",
+  "icon": "resources/icon.png",
   "publisher": "ziadshalaby00",
   "license": "MIT",
   "repository": {
