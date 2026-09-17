@@ -13,6 +13,18 @@ export function addSelectionCommand(store: MergeStore): vscode.Disposable {
       return;
     }
 
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(
+      editor.document.uri
+    );
+
+    if (!workspaceFolder) {
+      vscode.window.showWarningMessage(
+        'Code Merge: the selected code is not inside a workspace.'
+      );
+      return;
+    }
+
+    store.setActiveWorkspace(workspaceFolder.uri);
     const sel = editor.selection;
 
     if (sel.isEmpty) {
@@ -32,6 +44,7 @@ export function addSelectionCommand(store: MergeStore): vscode.Disposable {
       kind: 'selection',
       fsPath: doc.uri.fsPath,
       relativePath: toRelative(doc.uri),
+      workspaceFolder: workspaceFolder.uri.toString(),
       language: doc.languageId || ext,
       content,
       range: { startLine, endLine },

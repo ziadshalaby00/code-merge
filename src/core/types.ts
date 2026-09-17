@@ -7,6 +7,10 @@ export interface MergeItem {
   relativePath: string; 
   language: string;
   content: string;
-  range?: { startLine: number; endLine: number };
+  workspaceFolder?: string;
+  range?: {
+    startLine: number;
+    endLine: number;
+  };
   addedAt: number;
 }

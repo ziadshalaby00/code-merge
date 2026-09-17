@@ -7,9 +7,24 @@ export class MergeStore implements vscode.Disposable {
   private items: MergeItem[] = [];
   private emitter = new vscode.EventEmitter<void>();
   readonly onDidChange = this.emitter.event;
+  private activeWorkspaceUri?: string;
 
   constructor(private ctx: vscode.ExtensionContext) {
     this.items = ctx.workspaceState.get<MergeItem[]>(STORAGE_KEY, []);
+  }
+
+  public setActiveWorkspace(uri: vscode.Uri): void {
+    this.activeWorkspaceUri = uri.toString();
+  }
+
+  public getActiveWorkspace(): vscode.WorkspaceFolder | undefined {
+    if (!this.activeWorkspaceUri) {
+      return undefined;
+    }
+
+    return vscode.workspace.workspaceFolders?.find(
+      folder => folder.uri.toString() === this.activeWorkspaceUri
+    );
   }
 
   get all(): readonly MergeItem[] {

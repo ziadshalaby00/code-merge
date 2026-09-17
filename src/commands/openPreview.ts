@@ -4,16 +4,18 @@ import { renderMerged } from '../renderers';
 
 const OUTPUT_REL_PATH = '.code-merge/merged.md';
 
-async function getOutputUri(): Promise<vscode.Uri | undefined> {
-  const folder = vscode.workspace.workspaceFolders?.[0];
+async function getOutputUri(store: MergeStore ): Promise<vscode.Uri | undefined> {
+  const folder = store.getActiveWorkspace();
+
   if (!folder) {
     return undefined;
   }
+
   return vscode.Uri.joinPath(folder.uri, OUTPUT_REL_PATH);
 }
 
 export async function writeMergedFile(store: MergeStore): Promise<void> {
-  const uri = await getOutputUri();
+  const uri = await getOutputUri(store);
   if (!uri) {
     return;
   }
@@ -38,7 +40,7 @@ export async function writeMergedFile(store: MergeStore): Promise<void> {
 
 export function openPreviewCommand(store: MergeStore): vscode.Disposable {
   return vscode.commands.registerCommand('code-merge.openPreview', async () => {
-    const uri = await getOutputUri();
+    const uri = await getOutputUri(store);
     if (!uri) {
       vscode.window.showWarningMessage(
         'Code Merge: open a folder first to use the merged file.'
@@ -47,18 +49,16 @@ export function openPreviewCommand(store: MergeStore): vscode.Disposable {
     }
 
     const openDoc = vscode.workspace.textDocuments.find(
-        doc => doc.uri.toString() === uri.toString()
+      doc => doc.uri.toString() === uri.toString()
     );
 
     if (openDoc?.isDirty) {
-        vscode.window.showWarningMessage(
-            'Code Merge: merged.md has unsaved changes. Preview was not regenerated.'
-        );
+      vscode.window.showWarningMessage(
+        'Code Merge: merged.md has unsaved changes. Preview was not regenerated.'
+      );
     } else {
-    await writeMergedFile(store);
+      await writeMergedFile(store);
     }
-
-    await writeMergedFile(store);
 
     const previous = vscode.window.activeTextEditor;
 

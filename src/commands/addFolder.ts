@@ -79,6 +79,17 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
         return;
       }
 
+      const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+
+      if (!workspaceFolder) {
+        vscode.window.showWarningMessage(
+          'Code Merge: the selected folder is not inside a workspace.'
+        );
+        return;
+      }
+
+      store.setActiveWorkspace(workspaceFolder.uri);
+
       await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,

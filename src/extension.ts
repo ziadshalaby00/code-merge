@@ -31,11 +31,17 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 async function syncIfClean(store: MergeStore): Promise<void> {
-  const folder = vscode.workspace.workspaceFolders?.[0];
+  const folder = store.getActiveWorkspace();
+
   if (!folder) {
     return;
   }
-  const uri = vscode.Uri.joinPath(folder.uri, '.code-merge/merged.md');
+
+  const uri = vscode.Uri.joinPath(
+    folder.uri,
+    '.code-merge/merged.md'
+  );
+
   const openDoc = vscode.workspace.textDocuments.find(
     d => d.uri.toString() === uri.toString()
   );

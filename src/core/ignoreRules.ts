@@ -44,10 +44,14 @@ export function shouldSkipDir(name: string): boolean {
 }
 
 export function shouldSkipFile(name: string, ext: string): boolean {
+  if (name === '.env' || name.startsWith('.env.')) {
+    return true;
+  }
+
   if (DEFAULT_IGNORED_EXTENSIONS.has(ext.toLowerCase())) {
     return true;
   }
   return false;
 }
 
-export const MAX_FILE_SIZE = 1024 * 1024; // 1 MB
+export const MAX_FILE_SIZE = 1024 * 1024 * 5; // 5 MB
