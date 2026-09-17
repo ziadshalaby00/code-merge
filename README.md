@@ -5,10 +5,14 @@
 > feeding context to LLMs (ChatGPT, Claude, Copilot) or sharing code
 > snapshots with your team.
 
-| | |
-|---|---|
-| ![Screenshot 4](images/s4.png) | ![Screenshot 1](images/s1.png) |
-| ![Screenshot 2](images/s2.png) | ![Screenshot 3](images/s3.png) |
+<p>
+  <img src="./images/s4.png" width="48%">
+  <img src="./images/s1.png" width="48%">
+</p>
+<p>
+  <img src="./images/s2.png" width="48%">
+  <img src="./images/s3.png" width="48%">
+</p>
 
 ---
 
