@@ -18,40 +18,56 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
 
       let added = 0;
       let skipped = 0;
+      const warnings = new Set<string>();
 
       for (const target of targets) {
-        const stat = await vscode.workspace.fs.stat(target);
-        if (stat.size > MAX_FILE_SIZE) {
-          vscode.window.showWarningMessage(
-            `Code Merge: file is too large (max ${MAX_FILE_SIZE / 1024 / 1024} MB).`
-          );
-          return;
+        let stat: vscode.FileStat;
+        try {
+          stat = await vscode.workspace.fs.stat(target);
+        } catch {
+          skipped++;
+          continue;
         }
-        
+
         if (stat.type !== vscode.FileType.File) {
           skipped++;
           continue;
         }
 
-        const bytes = await vscode.workspace.fs.readFile(target);
-        const content = Buffer.from(bytes).toString('utf8');
-        
-        if (content.includes('\0')) {
-          vscode.window.showWarningMessage(
-            'Code Merge: binary files are not supported.'
+        if (stat.size > MAX_FILE_SIZE) {
+          warnings.add(
+            `Some files exceeded the max size (${MAX_FILE_SIZE / 1024 / 1024} MB) and were skipped.`
           );
-          return;
+          skipped++;
+          continue;
         }
-        
-        const ext = path.extname(target.fsPath).slice(1) || 'txt';
 
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(target);
         if (!workspaceFolder) {
-          vscode.window.showWarningMessage(
-            'Code Merge: the selected file is not inside a workspace.'
+          warnings.add(
+            'Some files are not inside a workspace and were skipped.'
           );
-          return;
+          skipped++;
+          continue;
         }
+
+        let bytes: Uint8Array;
+        try {
+          bytes = await vscode.workspace.fs.readFile(target);
+        } catch {
+          skipped++;
+          continue;
+        }
+
+        const content = Buffer.from(bytes).toString('utf8');
+
+        if (content.includes('\0')) {
+          warnings.add('Binary files are not supported and were skipped.');
+          skipped++;
+          continue;
+        }
+
+        const ext = path.extname(target.fsPath).slice(1) || 'txt';
 
         store.setActiveWorkspace(workspaceFolder.uri);
 
@@ -69,7 +85,11 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
         ok ? added++ : skipped++;
       }
 
-      const msg = `Code Merge: added ${added}, skipped ${skipped} (duplicates/folders)`;
+      for (const w of warnings) {
+        vscode.window.showWarningMessage(`Code Merge: ${w}`);
+      }
+
+      const msg = `Code Merge: added ${added}, skipped ${skipped} (duplicates/folders/errors)`;
       vscode.window.setStatusBarMessage(msg, 3000);
     }
   );

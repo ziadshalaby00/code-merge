@@ -11,10 +11,17 @@ export class MergeStore implements vscode.Disposable {
 
   constructor(private ctx: vscode.ExtensionContext) {
     this.items = ctx.workspaceState.get<MergeItem[]>(STORAGE_KEY, []);
+    this.activeWorkspaceUri = ctx.workspaceState.get<string>(
+      `${STORAGE_KEY}.activeWorkspace`
+    );
   }
 
   public setActiveWorkspace(uri: vscode.Uri): void {
     this.activeWorkspaceUri = uri.toString();
+    void this.ctx.workspaceState.update(
+      `${STORAGE_KEY}.activeWorkspace`,
+      this.activeWorkspaceUri
+    );
   }
 
   public getActiveWorkspace(): vscode.WorkspaceFolder | undefined {
@@ -35,20 +42,43 @@ export class MergeStore implements vscode.Disposable {
     return this.items.length;
   }
 
-  add(item: MergeItem): boolean {
-    const dup = this.items.some(
+  private isDuplicate(item: MergeItem): boolean {
+    return this.items.some(
       i =>
         i.fsPath === item.fsPath &&
         i.kind === item.kind &&
         i.range?.startLine === item.range?.startLine &&
         i.range?.endLine === item.range?.endLine
     );
-    if (dup) {
+  }
+
+  add(item: MergeItem): boolean {
+    if (this.isDuplicate(item)) {
       return false;
     }
     this.items.push(item);
     this.persist();
     return true;
+  }
+
+  addMany(newItems: MergeItem[]): { added: number; skipped: number } {
+    let added = 0;
+    let skipped = 0;
+
+    for (const item of newItems) {
+      if (this.isDuplicate(item)) {
+        skipped++;
+        continue;
+      }
+      this.items.push(item);
+      added++;
+    }
+
+    if (added > 0) {
+      this.persist();
+    }
+
+    return { added, skipped };
   }
 
   remove(id: string): void {

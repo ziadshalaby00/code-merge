@@ -3,6 +3,7 @@ import * as path from 'path';
 import { MergeStore } from '../core/MergeStore';
 import { newId } from '../core/ids';
 import { toRelative } from '../core/relativePath';
+import { MergeItem } from '../core/types';
 import {
   shouldSkipDir,
   shouldSkipFile,
@@ -110,9 +111,10 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
             return;
           }
 
-          let added = 0;
-          let skipped = 0;
+          const readErrors: string[] = [];
           let total = 0;
+
+          const pending: MergeItem[] = [];
 
           for (let i = 0; i < files.length; i++) {
             if (token.isCancellationRequested) {
@@ -131,36 +133,35 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
               const content = Buffer.from(bytes).toString('utf8');
 
               if (content.includes('\u0000')) {
-                skipped++;
+                readErrors.push(path.basename(f.uri.fsPath));
                 continue;
               }
 
               const ext = path.extname(f.uri.fsPath).slice(1) || 'txt';
 
-              const ok = store.add({
+              pending.push({
                 id: newId(),
                 kind: 'file',
                 fsPath: f.uri.fsPath,
                 relativePath: toRelative(f.uri),
+                workspaceFolder: workspaceFolder.uri.toString(),
                 language: ext,
                 content,
                 addedAt: Date.now(),
               });
 
-              if (ok) {
-                added++;
-                total += content.length;
-              } else {
-                skipped++;
-              }
+              total += content.length;
             } catch {
-              skipped++;
+              readErrors.push(path.basename(f.uri.fsPath));
             }
           }
 
+          const { added, skipped } = store.addMany(pending);
+          const skippedTotal = skipped + readErrors.length;
+
           const folderName = path.basename(uri.fsPath);
           vscode.window.setStatusBarMessage(
-            `Code Merge: "${folderName}" → added ${added}, skipped ${skipped} (${total.toLocaleString()} chars)`,
+            `Code Merge: "${folderName}" → added ${added}, skipped ${skippedTotal} (${total.toLocaleString()} chars)`,
             4000
           );
         }
