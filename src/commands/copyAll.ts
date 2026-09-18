@@ -14,9 +14,7 @@ export function copyAllCommand(store: MergeStore): vscode.Disposable {
 
     const items = [...store.all];
     if (!items.length) {
-      vscode.window.showInformationMessage(
-        'Code Merge: nothing to copy.'
-      );
+      vscode.window.showInformationMessage('Code Merge: nothing to copy.');
       return;
     }
 

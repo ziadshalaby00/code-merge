@@ -117,8 +117,13 @@
       "editor/title": [
         {
           "command": "code-merge.copyAll",
-          "when": "resourceFilename == merged.md && resourceDirname =~ /\\.code-merge$/",
+          "when": "resourceScheme == code-merge",
           "group": "navigation@1"
+        },
+        {
+          "command": "code-merge.clearAll",
+          "when": "resourceScheme == code-merge",
+          "group": "navigation@2"
         }
       ]
     },

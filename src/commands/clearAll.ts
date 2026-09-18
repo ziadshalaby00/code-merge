@@ -5,9 +5,7 @@ export function clearAllCommand(store: MergeStore): vscode.Disposable {
   return vscode.commands.registerCommand('code-merge.clearAll', async () => {
     const folder = store.getActiveWorkspace();
     if (!folder) {
-      vscode.window.showWarningMessage(
-        'Code Merge: no active workspace.'
-      );
+      vscode.window.showWarningMessage('Code Merge: no active workspace.');
       return;
     }
 

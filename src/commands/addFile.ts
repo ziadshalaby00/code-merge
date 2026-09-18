@@ -20,11 +20,13 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
       let skipped = 0;
       let lastAddedLabel = '';
       const warnings = new Set<string>();
-      const successfulWorkspaces: vscode.Uri[] = [];
+
+      // First workspace of any *valid* target — including duplicates.
+      // This is what we'll switch to, so the preview follows the file
+      // the user explicitly acted on.
+      let firstValidWorkspace: vscode.WorkspaceFolder | undefined;
 
       for (const target of targets) {
-        // Stat with guard: file may have been deleted/moved since the
-        // context menu was opened.
         let stat: vscode.FileStat;
         try {
           stat = await vscode.workspace.fs.stat(target);
@@ -53,6 +55,12 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
           );
           skipped++;
           continue;
+        }
+
+        // Record the first valid workspace as soon as we know the target
+        // belongs to one — even if it turns out to be a duplicate.
+        if (!firstValidWorkspace) {
+          firstValidWorkspace = workspaceFolder;
         }
 
         let bytes: Uint8Array;
@@ -87,23 +95,16 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
         if (ok) {
           added++;
           lastAddedLabel = relativePath;
-          if (
-            !successfulWorkspaces.some(
-              w => w.toString() === workspaceFolder.uri.toString()
-            )
-          ) {
-            successfulWorkspaces.push(workspaceFolder.uri);
-          }
         } else {
           skipped++;
         }
       }
 
-      // Only switch the active workspace once we know something was added.
-      // Picks the workspace of the first successfully added file so
-      // subsequent preview/copy target the right project.
-      if (successfulWorkspaces.length) {
-        store.setActiveWorkspace(successfulWorkspaces[0]);
+      // Switch the active workspace even if every target was rejected as
+      // a duplicate — the user explicitly targeted a file in that
+      // workspace, so the preview/copy/tree should follow it.
+      if (firstValidWorkspace) {
+        store.setActiveWorkspace(firstValidWorkspace.uri);
       }
 
       for (const w of warnings) {
@@ -120,8 +121,11 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
       }
 
       if (!added && skipped) {
+        const switched = firstValidWorkspace
+          ? ` — switched to "${firstValidWorkspace.name}"`
+          : '';
         vscode.window.setStatusBarMessage(
-          `Code Merge: nothing added (${skipped} skipped)`,
+          `Code Merge: nothing added (${skipped} skipped)${switched}`,
           3000
         );
         return;
