@@ -54,6 +54,8 @@ const IGNORED_DIRS = new Set([
   '.history',
 
   // Misc
+  // Legacy: old versions wrote `.code-merge/merged.md` to disk.
+  // Kept here so folder scans don't pick it up for existing users.
   '.code-merge',
   '.DS_Store',
   'tmp',

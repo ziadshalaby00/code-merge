@@ -1,8 +1,8 @@
 # Code Merge
 
 > Select files, folders, or code snippets and merge them into a single
-> markdown file — with a project tree and per-file headers. Perfect for
-> feeding context to LLMs (ChatGPT, Claude, Copilot) or sharing code
+> markdown preview — with a project tree and per-file headers. Perfect
+> for feeding context to LLMs (ChatGPT, Claude, Copilot) or sharing code
 > snapshots with your team.
 
 
@@ -29,18 +29,23 @@
 - **📁 Add files** — right-click any file in the Explorer, or use the keyboard.
 - **📂 Add folders** — recursively scan a folder with smart ignore rules
   (`node_modules`, `.git`, `dist`, `.venv`, binaries, lockfiles, …).
+  Symlinks are skipped, so cyclic links never hang the scan.
 - **✂️ Add selections** — grab a range of lines from the current editor
   (supports multi-cursor with `Ctrl+D`).
 - **🌲 Project tree** — every merged output starts with an ASCII tree of
   the selected items, including line ranges for selections.
-- **📝 Auto-generated `merged.md`** — written to `.code-merge/merged.md`
-  inside your workspace on every change.
+- **🪟 Virtual preview** — the merged output is a live, in-memory
+  document. Nothing is written to your workspace; the preview updates
+  as you add, remove, or edit items.
+- **🔄 Live sync** — edits (including unsaved ones) and external changes
+  (git pull, other editors) are picked up automatically. Files that are
+  deleted or that exceed 5 MB are dropped from the list.
 - **📋 One-click copy** — copy the entire merged content to the clipboard.
-- **🔒 Workspace isolation** — each workspace folder gets its own
-  `.code-merge/merged.md` and its own item list. Switching between
-  multi-root workspaces is seamless.
-- **⚡ Debounced writes** — batches rapid changes so disk I/O stays low.
-- **💾 Persistent state** — selections survive VS Code restarts.
+- **🔒 Workspace isolation** — each workspace folder gets its own item
+  list. The preview follows the active workspace as you switch between
+  multi-root folders.
+- **💾 Session-only state** — the selection list lives entirely in memory
+  and resets when VS Code restarts. No disk writes, no state to clean up.
 
 ---
 
@@ -59,13 +64,14 @@
 Open the **Code Merge** view from the Activity Bar to see all selected
 items. From there you can:
 
-- **Preview** (`$(open-preview)`) — opens `.code-merge/merged.md` beside
-  the current editor.
+- **Preview** (`$(open-preview)`) — opens the merged output as a
+  read-only virtual document beside the current editor.
 - **Copy** (`$(copy)`) — copies the full merged output to the clipboard.
 - **Clear** (`$(clear-all)`) — removes every item for the current
   workspace.
 
-Clicking any item in the tree opens its source file.
+Clicking any item in the tree opens its source file. For selections,
+the file opens scrolled to and highlighting the recorded range.
 
 ### Example output
 
@@ -117,14 +123,17 @@ All shortcuts can be rebound from **Keyboard Shortcuts** (`Ctrl+K Ctrl+S`).
 No settings yet. Ignore rules are built-in and cover:
 
 - **Directories** — `node_modules`, `.git`, `dist`, `build`, `out`,
-  `coverage`, `target`, `.venv`, `__pycache__`, `.next`, `.cache`, …  
+  `coverage`, `target`, `.venv`, `__pycache__`, `.next`, `.cache`, …
   (`.github`, `.gitlab`, and `.devcontainer` are *not* ignored so CI
   configs can be merged.)
 - **Extensions** — images, audio/video, archives, binaries, fonts,
   documents, databases, logs.
 - **Filenames** — `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`,
   `Cargo.lock`, `.env`, `.env.*`, etc.
-- **Size** — files larger than **5 MB** are skipped automatically.
+- **Size** — files (and selections) larger than **5 MB** are skipped
+  automatically.
+- **Symlinks** — skipped during folder scans to avoid cycles and
+  duplicate content.
 
 ---
 

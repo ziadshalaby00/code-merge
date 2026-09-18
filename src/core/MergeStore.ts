@@ -1,30 +1,31 @@
 import * as vscode from 'vscode';
 import { MergeItem } from './types';
 
-const STORAGE_KEY = 'codeMerge.items.v1';
-const ACTIVE_KEY = 'codeMerge.activeWorkspace.v1';
-
+/**
+ * In-memory store for merge items.
+ *
+ * Nothing is persisted — by design. Every VS Code session starts with an
+ * empty list. The active workspace defaults to the first workspace folder
+ * and can be changed by any command that acts on a specific folder.
+ */
 export class MergeStore implements vscode.Disposable {
   private items: MergeItem[] = [];
   private emitter = new vscode.EventEmitter<void>();
   readonly onDidChange = this.emitter.event;
   private activeWorkspaceUri?: string;
 
-  constructor(private ctx: vscode.ExtensionContext) {
-    this.items = ctx.workspaceState.get<MergeItem[]>(STORAGE_KEY, []);
-    this.activeWorkspaceUri = ctx.workspaceState.get<string>(ACTIVE_KEY);
-
-    // Fallback: if the stored workspace is no longer open (or never set),
-    // pick the first workspace folder so preview/copy keep working.
-    if (!this.getActiveWorkspace()) {
-      const first = vscode.workspace.workspaceFolders?.[0];
-      this.activeWorkspaceUri = first?.uri.toString();
-    }
+  constructor() {
+    // No persistence: each activation starts fresh. Default the active
+    // workspace to the first folder (if any) so preview/copy work
+    // immediately.
+    this.activeWorkspaceUri =
+      vscode.workspace.workspaceFolders?.[0]?.uri.toString();
   }
 
   /**
-   * Sets the active workspace. Each workspace has its own isolated list of
-   * items and its own generated `.code-merge/merged.md`.
+   * Sets the active workspace. Each workspace has its own isolated list
+   * of items; the preview, tree view, and copy command reflect this
+   * workspace until it is switched again.
    */
   public setActiveWorkspace(uri: vscode.Uri): void {
     const next = uri.toString();
@@ -32,7 +33,6 @@ export class MergeStore implements vscode.Disposable {
       return;
     }
     this.activeWorkspaceUri = next;
-    void this.ctx.workspaceState.update(ACTIVE_KEY, next);
     this.emitter.fire();
   }
 
@@ -80,7 +80,7 @@ export class MergeStore implements vscode.Disposable {
       return false;
     }
     this.items.push(item);
-    this.persist();
+    this.emitter.fire();
     return true;
   }
 
@@ -98,7 +98,7 @@ export class MergeStore implements vscode.Disposable {
     }
 
     if (added > 0) {
-      this.persist();
+      this.emitter.fire();
     }
 
     return { added, skipped };
@@ -108,7 +108,53 @@ export class MergeStore implements vscode.Disposable {
     const before = this.items.length;
     this.items = this.items.filter(i => i.id !== id);
     if (this.items.length !== before) {
-      this.persist();
+      this.emitter.fire();
+    }
+  }
+
+  /**
+   * Returns items (across all workspaces) whose fsPath matches.
+   * Used by the file-sync layer to find what to update.
+   */
+  itemsByFsPath(fsPath: string): MergeItem[] {
+    return this.items.filter(i => i.fsPath === fsPath);
+  }
+
+  /** Fast existence check — avoids allocating an array for non-tracked files. */
+  hasFsPath(fsPath: string): boolean {
+    return this.items.some(i => i.fsPath === fsPath);
+  }
+
+  /**
+   * Bulk-updates item content. Fires a single change event if anything
+   * actually changed. Used by the file-sync layer.
+   */
+  updateContents(
+    updates: readonly { id: string; content: string }[]
+  ): void {
+    let changed = false;
+    for (const { id, content } of updates) {
+      const item = this.items.find(i => i.id === id);
+      if (!item || item.content === content) {
+        continue;
+      }
+      item.content = content;
+      changed = true;
+    }
+    if (changed) {
+      this.emitter.fire();
+    }
+  }
+
+  /**
+   * Removes every item (across all workspaces) pointing at fsPath.
+   * Fires a change event if anything was removed.
+   */
+  removeByFsPath(fsPath: string): void {
+    const before = this.items.length;
+    this.items = this.items.filter(i => i.fsPath !== fsPath);
+    if (this.items.length !== before) {
+      this.emitter.fire();
     }
   }
 
@@ -124,22 +170,8 @@ export class MergeStore implements vscode.Disposable {
     const before = this.items.length;
     this.items = this.items.filter(i => i.workspaceFolder !== key);
     if (this.items.length !== before) {
-      this.persist();
+      this.emitter.fire();
     }
-  }
-
-  /** Clears items across every workspace. Not wired to any UI by default. */
-  clearAll(): void {
-    if (!this.items.length) {
-      return;
-    }
-    this.items = [];
-    this.persist();
-  }
-
-  private persist(): void {
-    void this.ctx.workspaceState.update(STORAGE_KEY, this.items);
-    this.emitter.fire();
   }
 
   dispose(): void {

@@ -12,16 +12,19 @@ import {
 import { copyAllCommand } from './commands/copyAll';
 import { clearAllCommand } from './commands/clearAll';
 import { addFolderCommand } from './commands/addFolder';
+import { FileSync } from './core/FileSync';
 
 export function activate(context: vscode.ExtensionContext): void {
-  const store = new MergeStore(context);
+  const store = new MergeStore();
   const tree = new MergeTreeProvider(store);
   const docProvider = new MergeDocumentProvider(store);
+  const fileSync = new FileSync(store);
 
   context.subscriptions.push(
     store,
     tree,
     docProvider,
+    fileSync,
     addFolderCommand(store),
     addFileCommand(store),
     addSelectionCommand(store),

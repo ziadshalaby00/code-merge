@@ -21,10 +21,21 @@ async function collectFiles(
 ): Promise<Collected[]> {
   const result: Collected[] = [];
 
+  // Tracks directories we've already walked. Prevents infinite loops
+  // when a symlink points back to an ancestor (or to itself).
+  const visited = new Set<string>();
+
   async function walk(dir: vscode.Uri): Promise<void> {
     if (token.isCancellationRequested) {
       return;
     }
+
+    // Cycle guard: never walk the same directory twice.
+    const key = dir.fsPath;
+    if (visited.has(key)) {
+      return;
+    }
+    visited.add(key);
 
     let entries: [string, vscode.FileType][];
     try {
@@ -38,14 +49,20 @@ async function collectFiles(
         return;
       }
 
+      // Skip symlinks entirely — prevents cycles and duplicate content
+      // when a symlink points at a tracked location.
+      if (type & vscode.FileType.SymbolicLink) {
+        continue;
+      }
+
       const child = vscode.Uri.joinPath(dir, name);
 
-      if (type === vscode.FileType.Directory) {
+      if (type & vscode.FileType.Directory) {
         if (shouldSkipDir(name)) {
           continue;
         }
         await walk(child);
-      } else if (type === vscode.FileType.File) {
+      } else if (type & vscode.FileType.File) {
         const ext = path.extname(name).slice(1);
         if (shouldSkipFile(name, ext)) {
           continue;

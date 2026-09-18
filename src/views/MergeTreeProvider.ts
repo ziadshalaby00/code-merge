@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { MergeStore } from '../core/MergeStore';
-import { MergeItem } from '../core/types';
+import { MergeItem, MergeRange } from '../core/types';
 
 const TOOLTIP_PREVIEW_CHARS = 400;
 
@@ -55,6 +55,20 @@ function itemLabel(data: MergeItem): string {
   return data.relativePath;
 }
 
+/**
+ * Converts a MergeItem range (1-based inclusive) to a VS Code Range
+ * (0-based, end-exclusive). The end column is maxed out so the whole
+ * last line is included in the selection.
+ */
+function rangeToSelection(range: MergeRange): vscode.Range {
+  const start = new vscode.Position(range.startLine - 1, 0);
+  const end = new vscode.Position(
+    range.endLine - 1,
+    Number.MAX_SAFE_INTEGER
+  );
+  return new vscode.Range(start, end);
+}
+
 export class MergeTreeItem extends vscode.TreeItem {
   constructor(public readonly data: MergeItem) {
     super(itemLabel(data), vscode.TreeItemCollapsibleState.None);
@@ -68,12 +82,23 @@ export class MergeTreeItem extends vscode.TreeItem {
       data.kind === 'selection' ? 'selection' : 'file'
     );
 
-    // Clicking the item opens the source file. For selections we jump
-    // straight to the range; for whole files we just open it.
+    // Clicking opens the source file. For selections, scroll to and
+    // highlight the recorded range so the user lands exactly where
+    // they made the selection.
+    const args: [vscode.Uri, vscode.TextDocumentShowOptions?] = [
+      vscode.Uri.file(data.fsPath),
+    ];
+
+    if (data.range) {
+      args.push({
+        selection: rangeToSelection(data.range),
+      });
+    }
+
     this.command = {
       command: 'vscode.open',
       title: 'Open',
-      arguments: [vscode.Uri.file(data.fsPath)],
+      arguments: args,
     };
   }
 }

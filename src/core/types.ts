@@ -30,7 +30,13 @@ export interface MergeItem {
    */
   language: string;
 
-  /** Snapshot of the content at the time it was added. */
+  /**
+   * Current content of the item.
+   *
+   * Captured at add time and kept in sync with the file system and the
+   * active editor by FileSync. For selections, this is only the sliced
+   * range, not the whole file.
+   */
   content: string;
 
   /**

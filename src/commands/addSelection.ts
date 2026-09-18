@@ -3,6 +3,7 @@ import * as path from 'path';
 import { MergeStore } from '../core/MergeStore';
 import { newId } from '../core/ids';
 import { toRelative } from '../core/relativePath';
+import { MAX_FILE_SIZE } from '../core/ignoreRules';
 
 export function addSelectionCommand(store: MergeStore): vscode.Disposable {
   return vscode.commands.registerCommand('code-merge.addSelection', () => {
@@ -46,6 +47,14 @@ export function addSelectionCommand(store: MergeStore): vscode.Disposable {
       const startLine = sel.start.line + 1;
       const endLine = sel.end.line + 1;
       const content = doc.getText(sel);
+
+      if (Buffer.byteLength(content, 'utf8') > MAX_FILE_SIZE) {
+        vscode.window.showWarningMessage(
+          `Code Merge: selection exceeds ${MAX_FILE_SIZE / 1024 / 1024} MB and was skipped.`
+        );
+        skipped++;
+        continue;
+      }
 
       const ok = store.add({
         id: newId(),
