@@ -21,8 +21,6 @@ async function collectFiles(
 ): Promise<Collected[]> {
   const result: Collected[] = [];
 
-  // Tracks directories we've already walked. Prevents infinite loops
-  // when a symlink points back to an ancestor (or to itself).
   const visited = new Set<string>();
 
   async function walk(dir: vscode.Uri): Promise<void> {
@@ -30,7 +28,6 @@ async function collectFiles(
       return;
     }
 
-    // Cycle guard: never walk the same directory twice.
     const key = dir.fsPath;
     if (visited.has(key)) {
       return;
@@ -49,8 +46,6 @@ async function collectFiles(
         return;
       }
 
-      // Skip symlinks entirely — prevents cycles and duplicate content
-      // when a symlink points at a tracked location.
       if (type & vscode.FileType.SymbolicLink) {
         continue;
       }
@@ -108,7 +103,6 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
         return;
       }
 
-      // Verify the target is actually a directory before walking it.
       let stat: vscode.FileStat;
       try {
         stat = await vscode.workspace.fs.stat(uri);
@@ -134,8 +128,6 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
         return;
       }
 
-      // If the root folder itself would be ignored (node_modules, dist, etc.),
-      // ask the user before scanning it.
       const rootName = path.basename(uri.fsPath);
       if (shouldSkipDir(rootName)) {
         const proceed = await confirmIgnoredRoot(rootName);
@@ -181,8 +173,25 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
             });
 
             try {
-              const bytes = await vscode.workspace.fs.readFile(f.uri);
-              const content = Buffer.from(bytes).toString('utf8');
+              // Prefer the in-memory editor buffer when the file is open,
+              // so unsaved edits are picked up. Fall back to disk otherwise.
+              const openDoc = vscode.workspace.textDocuments.find(
+                d => d.uri.scheme === 'file' && d.uri.fsPath === f.uri.fsPath
+              );
+
+              let content: string;
+
+              if (openDoc) {
+                content = openDoc.getText();
+
+                if (Buffer.byteLength(content, 'utf8') > MAX_FILE_SIZE) {
+                  readErrors++;
+                  continue;
+                }
+              } else {
+                const bytes = await vscode.workspace.fs.readFile(f.uri);
+                content = Buffer.from(bytes).toString('utf8');
+              }
 
               if (content.includes('\u0000')) {
                 readErrors++;
@@ -223,7 +232,6 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
             return;
           }
 
-          // Only switch active workspace once we know we'll add something.
           store.setActiveWorkspace(workspaceFolder.uri);
 
           const { added, skipped } = store.addMany(pending);

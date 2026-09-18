@@ -63,15 +63,35 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
           firstValidWorkspace = workspaceFolder;
         }
 
-        let bytes: Uint8Array;
-        try {
-          bytes = await vscode.workspace.fs.readFile(target);
-        } catch {
-          skipped++;
-          continue;
+        // Prefer the in-memory editor buffer when the file is open, so
+        // unsaved edits are picked up. Fall back to disk otherwise.
+        const openDoc = vscode.workspace.textDocuments.find(
+          d => d.uri.scheme === 'file' && d.uri.fsPath === target.fsPath
+        );
+
+        let content: string;
+
+        if (openDoc) {
+          content = openDoc.getText();
+
+          if (Buffer.byteLength(content, 'utf8') > MAX_FILE_SIZE) {
+            warnings.add(
+              `Some files exceeded the max size (${MAX_FILE_SIZE / 1024 / 1024} MB) and were skipped.`
+            );
+            skipped++;
+            continue;
+          }
+        } else {
+          let bytes: Uint8Array;
+          try {
+            bytes = await vscode.workspace.fs.readFile(target);
+          } catch {
+            skipped++;
+            continue;
+          }
+          content = Buffer.from(bytes).toString('utf8');
         }
 
-        const content = Buffer.from(bytes).toString('utf8');
         if (content.includes('\0')) {
           warnings.add('Binary files are not supported and were skipped.');
           skipped++;

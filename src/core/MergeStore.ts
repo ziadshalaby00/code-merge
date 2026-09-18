@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { MergeItem } from './types';
+import { MergeItem, MergeRange } from './types';
 
 /**
  * In-memory store for merge items.
@@ -59,6 +59,14 @@ export class MergeStore implements vscode.Disposable {
 
   get count(): number {
     return this.all.length;
+  }
+
+  /**
+   * Distinct absolute paths of every tracked item, across all workspaces.
+   * Used by FileSync to create one watcher per tracked file.
+   */
+  get allFsPaths(): string[] {
+    return [...new Set(this.items.map(i => i.fsPath))];
   }
 
   private isDuplicate(item: MergeItem): boolean {
@@ -141,6 +149,42 @@ export class MergeStore implements vscode.Disposable {
       item.content = content;
       changed = true;
     }
+    if (changed) {
+      this.emitter.fire();
+    }
+  }
+
+  updateRanges(
+    updates: readonly { id: string; range: MergeRange | null }[]
+  ): void {
+    let changed = false;
+    const toRemove = new Set<string>();
+
+    for (const { id, range } of updates) {
+      const item = this.items.find(i => i.id === id);
+      if (!item) {
+        continue;
+      }
+
+      if (range === null) {
+        toRemove.add(id);
+        changed = true;
+        continue;
+      }
+
+      if (
+        item.range?.startLine !== range.startLine ||
+        item.range?.endLine !== range.endLine
+      ) {
+        item.range = range;
+        changed = true;
+      }
+    }
+
+    if (toRemove.size) {
+      this.items = this.items.filter(i => !toRemove.has(i.id));
+    }
+
     if (changed) {
       this.emitter.fire();
     }
