@@ -2,7 +2,7 @@
   "name": "code-merge",
   "displayName": "Code Merge",
   "description": "Select files, folders, or code selections and merge them into a live markdown preview with a project tree and per-file headers.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "icon": "resources/icon.png",
   "publisher": "ziadshalaby00",
   "license": "MIT",
