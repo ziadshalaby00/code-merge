@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { MergeStore } from '../core/MergeStore';
 import { MergeDocumentProvider } from '../views/MergeDocumentProvider';
+import { lockAndKeep } from '../views/previewOpener';
 
 export function openPreviewCommand(store: MergeStore): vscode.Disposable {
   return vscode.commands.registerCommand('code-merge.openPreview', async () => {
@@ -49,13 +50,4 @@ export function openPreviewCommand(store: MergeStore): vscode.Disposable {
       });
     }
   });
-}
-
-async function lockAndKeep(): Promise<void> {
-  try {
-    await vscode.commands.executeCommand('workbench.action.lockEditorGroup');
-    await vscode.commands.executeCommand('workbench.action.keepEditor');
-  } catch {
-    // Internal commands may not exist in all VS Code versions.
-  }
 }

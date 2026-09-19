@@ -2,6 +2,13 @@ import * as vscode from 'vscode';
 import ignore from 'ignore';
 type Ignore = ReturnType<typeof ignore>;
 
+export type DirSkipReason =
+| 'builtin-dir'
+| 'additional-dir'
+| 'dot-dir'
+| 'pattern';
+
+
 /**
  * Directories that are never useful for a "code merge" context.
  * Anything in here is skipped unconditionally during folder scans.
@@ -100,8 +107,8 @@ export class IgnoreRules {
     this.logChannel?.appendLine(`[IgnoreRules] ${message}`);
   }
 
-  async reload(): Promise<void> {
-    const cfg = vscode.workspace.getConfiguration('code-merge');
+  async reload(workspaceRoot?: vscode.Uri): Promise<void> {
+    const cfg = vscode.workspace.getConfiguration('code-merge', workspaceRoot);
 
     this.additionalDirs = new Set(
       cfg.get<string[]>('ignore.additionalDirs', [])
@@ -127,7 +134,7 @@ export class IgnoreRules {
       this.log(`loaded ${inline.length} inline pattern(s)`);
     }
 
-    const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+    const root = workspaceRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri;
 
     const ignoreFileName = cfg.get<string>('ignore.file', '.code-mergeignore');
     if (root && ignoreFileName) {
@@ -169,20 +176,9 @@ export class IgnoreRules {
   }
 
   shouldSkipDir(name: string, relativePath: string): boolean {
-    if (DEFAULT_IGNORED_DIRS.has(name)) {
-      this.log(`skip dir "${relativePath}" (built-in dir list)`);
-      return true;
-    }
-    if (this.additionalDirs.has(name)) {
-      this.log(`skip dir "${relativePath}" (additionalDirs setting)`);
-      return true;
-    }
-    if (name.startsWith('.') && !this.dotDirAllowlist.has(name)) {
-      this.log(`skip dir "${relativePath}" (dot-dir, not allow-listed)`);
-      return true;
-    }
-    if (relativePath && this.ig_ignores(relativePath, true)) {
-      this.log(`skip dir "${relativePath}" (ignore pattern)`);
+    const reason = this.getDirSkipReason(name, relativePath);
+    if (reason) {
+      this.log(`skip dir "${relativePath}" (${reason})`);
       return true;
     }
     return false;
@@ -226,5 +222,40 @@ export class IgnoreRules {
       this.log(`ignores("${candidate}") threw — ${msg}`);
       return false;
     }
+  }
+
+  getDirSkipReason(name: string, relativePath: string): DirSkipReason | null {
+    if (relativePath && this.ig_ignores(relativePath, true)) { return 'pattern'; }
+    if (DEFAULT_IGNORED_DIRS.has(name)) { return 'builtin-dir'; }
+    if (this.additionalDirs.has(name)) { return 'additional-dir'; }
+    if (name.startsWith('.') && !this.dotDirAllowlist.has(name)) { return 'dot-dir'; }
+    return null;
+  }
+
+  /**
+   * Checks whether a path that's already tracked would now be skipped
+   * under the current rules. Used to prune the store after a reload.
+   * `relativePath` must be workspace-root-relative (POSIX style).
+   */
+  isPathIgnored(relativePath: string): boolean {
+    if (!relativePath) {
+      return false;
+    }
+
+    // Check every directory segment along the way, since a parent dir
+    // being ignored (e.g. "docs/") should ignore everything under it.
+    const segments = relativePath.split('/');
+    let acc = '';
+    for (let i = 0; i < segments.length - 1; i++) {
+      acc += (acc ? '/' : '') + segments[i];
+      const name = segments[i];
+      if (this.shouldSkipDir(name, acc)) {
+        return true;
+      }
+    }
+
+    const fileName = segments[segments.length - 1];
+    const ext = fileName.includes('.') ? fileName.split('.').pop()! : '';
+    return this.shouldSkipFile(fileName, ext, relativePath);
   }
 }

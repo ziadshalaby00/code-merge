@@ -3,13 +3,9 @@ import * as path from 'path';
 import { MergeStore } from '../core/MergeStore';
 import { newId } from '../core/ids';
 import { toRelative } from '../core/relativePath';
-import { IgnoreRules } from '../core/ignoreRules';
 import { ensurePreviewOpen } from '../views/previewOpener';
 
-export function addSelectionCommand(
-  store: MergeStore,
-  rules: IgnoreRules
-): vscode.Disposable {
+export function addSelectionCommand(store: MergeStore): vscode.Disposable {
   return vscode.commands.registerCommand('code-merge.addSelection', async () => {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -33,7 +29,10 @@ export function addSelectionCommand(
       return;
     }
 
-    await rules.reload();
+    const maxFileSize =
+      vscode.workspace
+        .getConfiguration('code-merge', workspaceFolder.uri)
+        .get<number>('maxFileSizeMB', 5) * 1024 * 1024;
 
     store.setActiveWorkspace(workspaceFolder.uri);
 
@@ -51,9 +50,9 @@ export function addSelectionCommand(
       const endLine = sel.end.line + 1;
       const content = doc.getText(sel);
 
-      if (Buffer.byteLength(content, 'utf8') > rules.maxFileSize) {
+      if (Buffer.byteLength(content, 'utf8') > maxFileSize) {
         vscode.window.showWarningMessage(
-          `Code Merge: selection exceeds ${rules.maxFileSize / 1024 / 1024} MB and was skipped.`
+          `Code Merge: selection exceeds ${maxFileSize / 1024 / 1024} MB and was skipped.`
         );
         skipped++;
         continue;
@@ -76,9 +75,14 @@ export function addSelectionCommand(
 
       ok ? added++ : skipped++;
     }
+    
+    // Auto-open the preview whenever the store has items — even if
+    // every selection in this batch was a duplicate.
+    if (store.count > 0) {
+      void ensurePreviewOpen(store);
+    }
 
     if (added && !skipped) {
-      void ensurePreviewOpen(store);
       const msg =
         added === 1
           ? `Code Merge: added selection from ${lastLabel}`

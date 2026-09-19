@@ -5,6 +5,7 @@ import { newId } from '../core/ids';
 import { toRelative } from '../core/relativePath';
 import { MergeItem } from '../core/types';
 import { IgnoreRules } from '../core/ignoreRules';
+import type { DirSkipReason } from '../core/ignoreRules';
 import { ensurePreviewOpen } from '../views/previewOpener';
 
 interface Collected {
@@ -98,9 +99,28 @@ async function collectFiles(
   return result;
 }
 
-async function confirmIgnoredRoot(folderName: string): Promise<boolean> {
+async function confirmIgnoredRoot(
+  folderName: string,
+  reason: DirSkipReason
+): Promise<boolean> {
+  let detail: string;
+
+  if (reason === 'pattern') {
+    detail =
+      `"${folderName}" is ignored by a pattern (from .code-mergeignore, ` +
+      `.gitignore, or additionalFilePatterns).\n\n` +
+      `Add Anyway will NOT add any files from inside it, because the ` +
+      `pattern matches everything under this folder. To add a specific ` +
+      `file, use "Code Merge: Add File" on it instead.`;
+  } else {
+    detail =
+      `"${folderName}" is normally ignored.\n\n` +
+      `Add Anyway will add the non-ignored files inside it ` +
+      `(binaries, lockfiles, and other ignored files will still be skipped).`;
+  }
+
   const pick = await vscode.window.showWarningMessage(
-    `Code Merge: "${folderName}" is normally ignored. Add it anyway?`,
+    `Code Merge: ${detail}`,
     { modal: true },
     'Add Anyway'
   );
@@ -145,17 +165,31 @@ export function addFolderCommand(
       }
 
       // Refresh rules from settings + ignore file before scanning.
-      await rules.reload();
+      await rules.reload(workspaceFolder.uri);
 
       const rootName = path.basename(uri.fsPath);
       const rootRel = relToWorkspace(uri, workspaceFolder.uri);
 
-      if (rules.shouldSkipDir(rootName, rootRel)) {
-        const proceed = await confirmIgnoredRoot(rootName);
+      const rootReason = rules.getDirSkipReason(rootName, rootRel);
+      if (rootReason) {
+        const proceed = await confirmIgnoredRoot(rootName, rootReason);
         if (!proceed) {
           return;
         }
       }
+
+      // Drop any already-tracked item that's now covered by an ignore
+      // rule (e.g. the user just added its path to .code-mergeignore).
+      // Only prunes on an explicit Add — see prior discussion.
+      const isUnderRoot = (rel: string): boolean =>
+        rootRel === '' ||
+        rel === rootRel ||
+        rel.startsWith(rootRel + '/');
+
+      const prunedCount = store.prune(
+        workspaceFolder.uri,
+        item => isUnderRoot(item.relativePath) && rules.isPathIgnored(item.relativePath)
+      );
 
       await vscode.window.withProgress(
         {
@@ -261,13 +295,17 @@ export function addFolderCommand(
           const { added, skipped } = store.addMany(pending);
           const skippedTotal = skipped + readErrors;
 
-          // Auto-open the preview the first time something gets added.
-          if (added > 0) {
+          // Auto-open the preview whenever the store has items — even if
+          // everything in this batch was a duplicate, the user still
+          // expects to see the preview if it got closed.
+          if (store.count > 0) {
             void ensurePreviewOpen(store);
           }
 
           vscode.window.setStatusBarMessage(
-            `Code Merge: "${rootName}" → added ${added}, skipped ${skippedTotal} (${totalChars.toLocaleString()} chars)`,
+            `Code Merge: "${rootName}" → added ${added}, skipped ${skippedTotal}` +
+              (prunedCount > 0 ? `, removed ${prunedCount} now-ignored` : '') +
+              ` (${totalChars.toLocaleString()} chars)`,
             4000
           );
         }

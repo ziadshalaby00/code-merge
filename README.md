@@ -15,12 +15,13 @@
 
 
 <p>
-  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/s4.png" width="48%" alt="Copy merged content">
-  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/s1.png" width="48%" alt="Add folder to merge">
+  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/1.png" width="32%">
+  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/2.png" width="32%">
+  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/3.png" width="32%">
 </p>
 <p>
-  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/s2.png" width="48%" alt="Preview merged output">
-  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/s3.png" width="48%" alt="Add selection">
+  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/4.png" width="48.3%" alt="Preview merged output">
+  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/5.png" width="48.3%">
 </p>
 
 ---
@@ -47,8 +48,10 @@
   multi-root folders.
 - **⚙️ Configurable ignore rules** — extend the built-in ignore lists via
   VS Code settings, a `.code-mergeignore` file (gitignore syntax), or by
-  enabling `.gitignore` support. Commands to open settings, reload rules,
-  and ignore a path from the Explorer are included.
+  enabling `.gitignore` support. Ignore files are read from each
+  workspace folder's root only (nested files are not read). Commands to
+  open settings, reload rules, and ignore a path from the Explorer are
+  included.
 - **🚀 Auto-open preview** — the merged preview opens automatically beside
   the current editor the first time you add an item. Disable it with
   `code-merge.autoOpenPreview`.
@@ -92,6 +95,34 @@ the file opens scrolled to and highlighting the recorded range.
 | Reload ignore rules | Command Palette or view title → **Code Merge: Reload Ignore Rules** |
 | Ignore a path | Right-click file/folder in Explorer → **Code Merge: Ignore This Path** |
 | Edit `.code-mergeignore` | Add gitignore-style patterns manually at the workspace root. |
+
+> **Add File** works on one workspace folder at a time. In a multi-root
+> workspace, selecting files from more than one folder in a single
+> action will be rejected — add them folder by folder.
+
+> **Add Anyway and pattern-ignored folders:** If a folder is ignored by
+> a *name* (`node_modules`, `dist`, anything in
+> `code-merge.ignore.additionalDirs`, or a non-allowlisted dot-dir),
+> **Add Anyway** adds the non-ignored files inside it. But if the
+> folder is ignored by a *pattern* (from `.code-mergeignore`,
+> `.gitignore`, or `code-merge.ignore.additionalFilePatterns`),
+> **Add Anyway** cannot add anything — the pattern matches every file
+> underneath. To add specific files from a pattern-ignored folder, use
+> **Code Merge: Add File** on each one instead.
+
+> **Ignore files are read from the workspace folder's root only.**
+> `.code-mergeignore` and `.gitignore` (when
+> `code-merge.ignore.useGitignore` is enabled) are resolved against
+> the root of the workspace folder that owns the file or folder being
+> added. Nested `.gitignore` files inside subfolders are **not** read,
+> and a `.code-workspace` file's directory is not treated as a root —
+> each workspace folder uses its own ignore files.
+
+> **Note:** Adding a path to your ignore rules doesn't remove items
+> that are already in the merge list. Re-run **Add Folder** on an
+> ancestor folder to prune anything that now matches — the status bar
+> will report how many items were removed (e.g. `removed 3
+> now-ignored`).
 
 ### Example output
 

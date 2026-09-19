@@ -17,16 +17,9 @@ export class FileSync implements vscode.Disposable {
   ) {
     this.disposables.push(
       vscode.workspace.onDidChangeTextDocument(e => this.onEdit(e)),
-      store.onDidChange(() => this.reconcileWatchers()),
-      // Reload rules whenever the user changes settings.
-      vscode.workspace.onDidChangeConfiguration(e => {
-        if (e.affectsConfiguration('code-merge')) {
-          void this.rules.reload();
-        }
-      })
+      store.onDidChange(() => this.reconcileWatchers())
     );
 
-    void this.rules.reload();
     this.reconcileWatchers();
   }
 

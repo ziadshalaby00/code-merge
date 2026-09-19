@@ -27,8 +27,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const docProvider = new MergeDocumentProvider(store);
   const fileSync = new FileSync(store, rules);
 
-  // Prime the rules so the first scan sees fresh config.
-  void rules.reload();
+  void rules.reload(store.getActiveWorkspace()?.uri);
 
   context.subscriptions.push(
     output,
@@ -38,14 +37,14 @@ export function activate(context: vscode.ExtensionContext): void {
     fileSync,
     addFolderCommand(store, rules),
     addFileCommand(store, rules),
-    addSelectionCommand(store, rules),
+    addSelectionCommand(store),
     deleteItemCommand(store),
     openPreviewCommand(store),
     copyAllCommand(store),
     clearAllCommand(store),
     ignorePathCommand(),
     openIgnoreSettingsCommand(),
-    reloadIgnoreRulesCommand(rules),
+    reloadIgnoreRulesCommand(rules, store),
     vscode.window.registerTreeDataProvider('codeMerge.items', tree),
     vscode.workspace.registerTextDocumentContentProvider(
       MERGE_SCHEME,
@@ -54,7 +53,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.workspace.onDidChangeConfiguration(e => {
       if (e.affectsConfiguration('code-merge')) {
-        void rules.reload();
+        void rules.reload(store.getActiveWorkspace()?.uri);
       }
     }),
 

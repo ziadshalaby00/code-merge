@@ -191,6 +191,29 @@ export class MergeStore implements vscode.Disposable {
   }
 
   /**
+   * Removes items matching a predicate, scoped to a specific workspace
+   * (not necessarily the currently active one). Fires a single change
+   * event if anything was removed. Returns the count removed.
+   */
+  prune(
+    workspaceUri: vscode.Uri,
+    shouldRemove: (item: MergeItem) => boolean
+  ): number {
+    const key = workspaceUri.toString();
+    const before = this.items.length;
+    this.items = this.items.filter(
+      i => i.workspaceFolder !== key || !shouldRemove(i)
+    );
+    const removed = before - this.items.length;
+
+    if (removed > 0) {
+      this.emitter.fire();
+    }
+
+    return removed;
+  }
+
+  /**
    * Removes every item (across all workspaces) pointing at fsPath.
    * Fires a change event if anything was removed.
    */

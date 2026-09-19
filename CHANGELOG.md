@@ -1,3 +1,83 @@
+## [0.4.0] — 2026-09-19
+
+### Added
+- **Item count in preview status messages** — folder scans now report
+  how many previously-tracked items were removed for now matching an
+  ignore rule (e.g. `added 5, skipped 2, removed 3 now-ignored`).
+- **Add Anyway confirmation for ignored folders** — when adding a
+  folder that's normally ignored, the dialog now explains what will
+  actually happen:
+  - for **name-ignored** folders (`node_modules`, `dist`, anything in
+    `code-merge.ignore.additionalDirs`, or non-allowlisted dot-dirs),
+    the non-ignored files inside will still be added;
+  - for **pattern-ignored** folders (`docs/` in `.code-mergeignore`,
+    `.gitignore`, or `code-merge.ignore.additionalFilePatterns`),
+    Add Anyway will not add anything, because the pattern matches
+    every file underneath.
+- **Ignored-file warning for Add File** — adding one or more files
+  that are normally ignored now asks for confirmation once per batch,
+  matching the Add Folder behaviour. Declining skips them; accepting
+  adds them.
+
+### Changed
+- **`Add File` now rejects selections that span multiple workspace
+  folders.** Previously, a multi-root selection applied the first
+  workspace's ignore rules to every file, and only the first
+  workspace's items were visible in the tree and preview — the rest
+  were added silently but stayed hidden. Add files from one workspace
+  folder at a time.
+- **`Add Selection` no longer reloads ignore rules.** It only needs
+  the configured max file size, which it now reads directly from
+  settings. This avoids touching the pattern matcher for a command
+  that doesn't use it.
+- **Ignore-rule reloads on startup and on settings changes now happen
+  exactly once.** Previously they fired twice — once from `FileSync`
+  and once from `extension.ts`.
+
+### Fixed
+- **Ignore rules now resolve against the workspace folder actually
+  being scanned**, not always the first folder in a multi-root
+  workspace. Affects both `.code-mergeignore` and `.gitignore`.
+- **Auto-open preview now triggers even when every item in a batch
+  was a duplicate** — previously, re-adding an already-tracked folder
+  after manually closing the preview tab would silently do nothing.
+- **Auto-open preview now locks/pins the tab the same way the manual
+  "Open Preview" command does**, and restores focus to the editor
+  you were working in.
+- **Already-tracked items are now pruned when a rescanned folder
+  matches a newly-added ignore rule.** Previously, adding a path to
+  `.code-mergeignore` only prevented *future* additions; items already
+  in the merge list stayed until manually removed.
+- **Prune now runs after the Add Anyway confirmation.** Previously
+  the prune ran before the user was asked; cancelling the prompt
+  still removed already-tracked items.
+- **Prune is now scoped to the folder being added.** Adding `src/`
+  no longer removes tracked items under `dist/`, even when `dist/`
+  is ignored.
+- **Folder-skip diagnostics log correctly.** `shouldSkipDir` was
+  returning early for built-in / additional / dot-dir matches without
+  writing to the Code Merge output channel; every skip reason now
+  logs.
+- **Folder-ignore reason detection now prefers patterns over
+  built-in names.** When a folder is both built-in ignored (e.g.
+  `dist`) and matched by an explicit pattern, the confirmation dialog
+  now correctly describes the pattern behaviour.
+
+### Notes
+- **`Add Folder` pruning happens before the scan completes.** If you
+  cancel the folder scan after confirming, any already-tracked items
+  under that folder that now match an ignore rule will already have
+  been removed.
+- **Ignore files are read from each workspace folder's root only.**
+  `.code-mergeignore` (and `.gitignore`, when
+  `code-merge.ignore.useGitignore` is enabled) are resolved against
+  the root of the workspace folder that owns the file being added —
+  never against nested subfolders, and never against the directory
+  that contains a `.code-workspace` file. In a multi-root workspace,
+  each folder uses its own ignore files.
+
+---
+
 ## [0.3.0] — 2025-XX-XX
 
 ### Added

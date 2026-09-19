@@ -2,10 +2,6 @@ import * as vscode from 'vscode';
 import { MergeDocumentProvider } from './MergeDocumentProvider';
 import { MergeStore } from '../core/MergeStore';
 
-/**
- * Returns true when the merged preview tab is currently open in any
- * editor group. Cheap check — uses tab API, no file I/O.
- */
 export function isPreviewOpen(): boolean {
   const target = MergeDocumentProvider.uri().toString();
 
@@ -24,13 +20,19 @@ export function isPreviewOpen(): boolean {
 }
 
 /**
- * Opens the merged preview beside the current editor **only if it isn't
- * already open**. Respects the `code-merge.autoOpenPreview` setting.
- *
- * Called by the add commands after a successful insert, so the preview
- * appears on its own the first time the user adds something — without
- * stealing focus and without re-opening on every subsequent add.
+ * Locks the active editor group and converts its preview tab into a
+ * pinned one. Shared between the manual "Open Preview" command and
+ * the auto-open path, so both leave the tab in the same state.
  */
+export async function lockAndKeep(): Promise<void> {
+  try {
+    await vscode.commands.executeCommand('workbench.action.lockEditorGroup');
+    await vscode.commands.executeCommand('workbench.action.keepEditor');
+  } catch {
+    // Internal commands may not exist in all VS Code versions.
+  }
+}
+
 export async function ensurePreviewOpen(
   store: MergeStore
 ): Promise<void> {
@@ -48,14 +50,23 @@ export async function ensurePreviewOpen(
     return;
   }
 
+  const previous = vscode.window.activeTextEditor;
+
   const uri = MergeDocumentProvider.uri();
   const doc = await vscode.workspace.openTextDocument(uri);
 
   await vscode.window.showTextDocument(doc, {
     viewColumn: vscode.ViewColumn.Beside,
     preview: false,
-    // Keep focus where the user is (Explorer / editor). Auto-open
-    // should be a side effect, not a focus theft.
-    preserveFocus: true,
+    preserveFocus: false,
   });
+
+  await lockAndKeep();
+
+  if (previous) {
+    await vscode.window.showTextDocument(previous.document, {
+      viewColumn: previous.viewColumn,
+      preserveFocus: false,
+    });
+  }
 }
