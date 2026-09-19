@@ -1,6 +1,10 @@
-out
-dist
-node_modules
+node_modules/
+out/
+dist/
 .vscode-test/
 *.vsix
 commit-message.md
+.DS_Store
+*.log
+.env
+.env.*

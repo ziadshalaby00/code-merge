@@ -1,9 +1,10 @@
 # Code Merge
 
 > Select files, folders, or code snippets and merge them into a single
-> markdown preview — with a project tree and per-file headers. Perfect
-> for feeding context to LLMs (ChatGPT, Claude, Copilot) or sharing code
-> snapshots with your team.
+> live markdown preview — with a project tree, per-file headers, item
+> counts, and configurable ignore rules. Perfect for feeding context to
+> LLMs (ChatGPT, Claude, Copilot) or sharing code snapshots with your
+> team.
 
 
 [![GitHub](https://img.shields.io/badge/GitHub-ziadshalaby00-181717?logo=github)](https://github.com/ziadshalaby00/code-merge)

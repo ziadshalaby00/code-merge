@@ -4,7 +4,9 @@ out/**
 node_modules/**
 src/**
 .gitignore
-.yarnrc
+.code-mergeignore
+commit-message.md
+images/
 esbuild.js
 vsc-extension-quickstart.md
 **/tsconfig.json
@@ -12,5 +14,5 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
-commit-message.md
-images/
+package-lock.json
+*.vsix
