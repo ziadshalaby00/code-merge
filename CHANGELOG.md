@@ -12,6 +12,9 @@
   - `Code Merge: Ignore This Path`
 - **Auto-open preview** — the merged preview opens automatically the first
   time an item is added. Controlled by `code-merge.autoOpenPreview`.
+- **Item count in the structure header** — the merged output now shows a
+  summary like `Project structure — my-api (12 files, 3 selections)`
+  so you can see at a glance how much is being merged.
 - **Output channel** — `Code Merge` output channel for ignore-rule
   diagnostics.
 - **`previewOpener.ts`** — helper to open the preview without stealing

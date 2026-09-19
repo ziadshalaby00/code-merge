@@ -51,6 +51,9 @@
 - **🚀 Auto-open preview** — the merged preview opens automatically beside
   the current editor the first time you add an item. Disable it with
   `code-merge.autoOpenPreview`.
+- **🧮 Item count in the header** — the project-structure header shows a
+  summary like `(12 files, 3 selections)` so you know exactly how much
+  content you're about to copy.
 - **💾 Session-only state** — the selection list lives entirely in memory
   and resets when VS Code restarts. No disk writes, no state to clean up.
 
@@ -93,7 +96,7 @@ the file opens scrolled to and highlighting the recorded range.
 
 ````markdown
 // ────────────────────────────────────────────────────────────
-// Project structure — my-api
+// Project structure — my-api (3 files, 2 selections)
 // ────────────────────────────────────────────────────────────
 
 my-api/
