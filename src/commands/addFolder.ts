@@ -4,23 +4,33 @@ import { MergeStore } from '../core/MergeStore';
 import { newId } from '../core/ids';
 import { toRelative } from '../core/relativePath';
 import { MergeItem } from '../core/types';
-import {
-  shouldSkipDir,
-  shouldSkipFile,
-  MAX_FILE_SIZE,
-} from '../core/ignoreRules';
+import { IgnoreRules } from '../core/ignoreRules';
+import { ensurePreviewOpen } from '../views/previewOpener';
 
 interface Collected {
   uri: vscode.Uri;
   size: number;
 }
 
+/**
+ * Returns the POSIX-style path of `uri` relative to `workspaceRoot`.
+ * Returns '' when `uri` is the workspace root itself.
+ */
+function relToWorkspace(
+  uri: vscode.Uri,
+  workspaceRoot: vscode.Uri
+): string {
+  const rel = path.relative(workspaceRoot.fsPath, uri.fsPath);
+  return rel.replace(/\\/g, '/');
+}
+
 async function collectFiles(
   root: vscode.Uri,
-  token: vscode.CancellationToken
+  workspaceRoot: vscode.Uri,
+  token: vscode.CancellationToken,
+  rules: IgnoreRules
 ): Promise<Collected[]> {
   const result: Collected[] = [];
-
   const visited = new Set<string>();
 
   async function walk(dir: vscode.Uri): Promise<void> {
@@ -52,14 +62,19 @@ async function collectFiles(
 
       const child = vscode.Uri.joinPath(dir, name);
 
+      // IMPORTANT: always compute the path relative to the workspace
+      // root, so patterns like `src/**` and `**/generated/**` match
+      // even when the user started the scan from a subfolder.
+      const rel = relToWorkspace(child, workspaceRoot);
+
       if (type & vscode.FileType.Directory) {
-        if (shouldSkipDir(name)) {
+        if (rules.shouldSkipDir(name, rel)) {
           continue;
         }
         await walk(child);
       } else if (type & vscode.FileType.File) {
         const ext = path.extname(name).slice(1);
-        if (shouldSkipFile(name, ext)) {
+        if (rules.shouldSkipFile(name, ext, rel)) {
           continue;
         }
 
@@ -70,7 +85,7 @@ async function collectFiles(
           continue;
         }
 
-        if (stat.size > MAX_FILE_SIZE) {
+        if (stat.size > rules.maxFileSize) {
           continue;
         }
 
@@ -83,9 +98,7 @@ async function collectFiles(
   return result;
 }
 
-async function confirmIgnoredRoot(
-  folderName: string
-): Promise<boolean> {
+async function confirmIgnoredRoot(folderName: string): Promise<boolean> {
   const pick = await vscode.window.showWarningMessage(
     `Code Merge: "${folderName}" is normally ignored. Add it anyway?`,
     { modal: true },
@@ -94,7 +107,10 @@ async function confirmIgnoredRoot(
   return pick === 'Add Anyway';
 }
 
-export function addFolderCommand(store: MergeStore): vscode.Disposable {
+export function addFolderCommand(
+  store: MergeStore,
+  rules: IgnoreRules
+): vscode.Disposable {
   return vscode.commands.registerCommand(
     'code-merge.addFolder',
     async (uri?: vscode.Uri) => {
@@ -128,8 +144,13 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
         return;
       }
 
+      // Refresh rules from settings + ignore file before scanning.
+      await rules.reload();
+
       const rootName = path.basename(uri.fsPath);
-      if (shouldSkipDir(rootName)) {
+      const rootRel = relToWorkspace(uri, workspaceFolder.uri);
+
+      if (rules.shouldSkipDir(rootName, rootRel)) {
         const proceed = await confirmIgnoredRoot(rootName);
         if (!proceed) {
           return;
@@ -143,7 +164,12 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
           cancellable: true,
         },
         async (progress, token) => {
-          const files = await collectFiles(uri, token);
+          const files = await collectFiles(
+            uri,
+            workspaceFolder.uri,
+            token,
+            rules
+          );
 
           if (token.isCancellationRequested) {
             return;
@@ -173,8 +199,6 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
             });
 
             try {
-              // Prefer the in-memory editor buffer when the file is open,
-              // so unsaved edits are picked up. Fall back to disk otherwise.
               const openDoc = vscode.workspace.textDocuments.find(
                 d => d.uri.scheme === 'file' && d.uri.fsPath === f.uri.fsPath
               );
@@ -184,7 +208,7 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
               if (openDoc) {
                 content = openDoc.getText();
 
-                if (Buffer.byteLength(content, 'utf8') > MAX_FILE_SIZE) {
+                if (Buffer.byteLength(content, 'utf8') > rules.maxFileSize) {
                   readErrors++;
                   continue;
                 }
@@ -236,6 +260,11 @@ export function addFolderCommand(store: MergeStore): vscode.Disposable {
 
           const { added, skipped } = store.addMany(pending);
           const skippedTotal = skipped + readErrors;
+
+          // Auto-open the preview the first time something gets added.
+          if (added > 0) {
+            void ensurePreviewOpen(store);
+          }
 
           vscode.window.setStatusBarMessage(
             `Code Merge: "${rootName}" → added ${added}, skipped ${skippedTotal} (${totalChars.toLocaleString()} chars)`,

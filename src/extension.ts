@@ -12,44 +12,60 @@ import {
 import { copyAllCommand } from './commands/copyAll';
 import { clearAllCommand } from './commands/clearAll';
 import { addFolderCommand } from './commands/addFolder';
+import { ignorePathCommand } from './commands/ignorePath';
+import { openIgnoreSettingsCommand } from './commands/openIgnoreSettings';
+import { reloadIgnoreRulesCommand } from './commands/reloadIgnoreRules';
 import { FileSync } from './core/FileSync';
+import { IgnoreRules } from './core/ignoreRules';
 
 export function activate(context: vscode.ExtensionContext): void {
+  const output = vscode.window.createOutputChannel('Code Merge');
+
   const store = new MergeStore();
+  const rules = new IgnoreRules(output);
   const tree = new MergeTreeProvider(store);
   const docProvider = new MergeDocumentProvider(store);
-  const fileSync = new FileSync(store);
+  const fileSync = new FileSync(store, rules);
+
+  // Prime the rules so the first scan sees fresh config.
+  void rules.reload();
 
   context.subscriptions.push(
+    output,
     store,
     tree,
     docProvider,
     fileSync,
-    addFolderCommand(store),
-    addFileCommand(store),
-    addSelectionCommand(store),
+    addFolderCommand(store, rules),
+    addFileCommand(store, rules),
+    addSelectionCommand(store, rules),
     deleteItemCommand(store),
     openPreviewCommand(store),
     copyAllCommand(store),
     clearAllCommand(store),
+    ignorePathCommand(),
+    openIgnoreSettingsCommand(),
+    reloadIgnoreRulesCommand(rules),
     vscode.window.registerTreeDataProvider('codeMerge.items', tree),
     vscode.workspace.registerTextDocumentContentProvider(
       MERGE_SCHEME,
       docProvider
     ),
 
-    // Keep the active workspace valid when folders are opened/closed.
+    vscode.workspace.onDidChangeConfiguration(e => {
+      if (e.affectsConfiguration('code-merge')) {
+        void rules.reload();
+      }
+    }),
+
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       if (!store.getActiveWorkspace()) {
         const first = vscode.workspace.workspaceFolders?.[0];
         if (first) {
-          // Fires store.onDidChange → provider refreshes.
           store.setActiveWorkspace(first.uri);
           return;
         }
       }
-      // No active workspace at all — force a refresh so the preview
-      // shows the "no active workspace" message.
       docProvider.notifyChanged();
     })
   );

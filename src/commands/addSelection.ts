@@ -3,10 +3,14 @@ import * as path from 'path';
 import { MergeStore } from '../core/MergeStore';
 import { newId } from '../core/ids';
 import { toRelative } from '../core/relativePath';
-import { MAX_FILE_SIZE } from '../core/ignoreRules';
+import { IgnoreRules } from '../core/ignoreRules';
+import { ensurePreviewOpen } from '../views/previewOpener';
 
-export function addSelectionCommand(store: MergeStore): vscode.Disposable {
-  return vscode.commands.registerCommand('code-merge.addSelection', () => {
+export function addSelectionCommand(
+  store: MergeStore,
+  rules: IgnoreRules
+): vscode.Disposable {
+  return vscode.commands.registerCommand('code-merge.addSelection', async () => {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
       vscode.window.showWarningMessage('Code Merge: no active editor.');
@@ -23,15 +27,14 @@ export function addSelectionCommand(store: MergeStore): vscode.Disposable {
       return;
     }
 
-    // Collect non-empty selections (support multi-cursor via Ctrl+D / Cmd+D).
     const selections = editor.selections.filter(sel => !sel.isEmpty);
     if (!selections.length) {
       vscode.window.showWarningMessage('Code Merge: select some code first.');
       return;
     }
 
-    // Only now do we know the command will do something — switch active
-    // workspace at this point so empty selections don't move focus.
+    await rules.reload();
+
     store.setActiveWorkspace(workspaceFolder.uri);
 
     const doc = editor.document;
@@ -48,9 +51,9 @@ export function addSelectionCommand(store: MergeStore): vscode.Disposable {
       const endLine = sel.end.line + 1;
       const content = doc.getText(sel);
 
-      if (Buffer.byteLength(content, 'utf8') > MAX_FILE_SIZE) {
+      if (Buffer.byteLength(content, 'utf8') > rules.maxFileSize) {
         vscode.window.showWarningMessage(
-          `Code Merge: selection exceeds ${MAX_FILE_SIZE / 1024 / 1024} MB and was skipped.`
+          `Code Merge: selection exceeds ${rules.maxFileSize / 1024 / 1024} MB and was skipped.`
         );
         skipped++;
         continue;
@@ -75,6 +78,7 @@ export function addSelectionCommand(store: MergeStore): vscode.Disposable {
     }
 
     if (added && !skipped) {
+      void ensurePreviewOpen(store);
       const msg =
         added === 1
           ? `Code Merge: added selection from ${lastLabel}`
@@ -92,7 +96,6 @@ export function addSelectionCommand(store: MergeStore): vscode.Disposable {
       return;
     }
 
-    // Mixed: some added, some duplicates.
     vscode.window.setStatusBarMessage(
       `Code Merge: added ${added}, skipped ${skipped} (duplicates)`,
       3000

@@ -2,7 +2,7 @@
   "name": "code-merge",
   "displayName": "Code Merge",
   "description": "Select files, folders, or code selections and merge them into a live markdown preview with a project tree and per-file headers.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "icon": "resources/icon.png",
   "publisher": "ziadshalaby00",
   "license": "MIT",
@@ -68,6 +68,21 @@
         "command": "code-merge.clearAll",
         "title": "Code Merge: Clear All",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "code-merge.openIgnoreSettings",
+        "title": "Code Merge: Open Ignore Settings",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "code-merge.reloadIgnoreRules",
+        "title": "Code Merge: Reload Ignore Rules",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "code-merge.ignorePath",
+        "title": "Code Merge: Ignore This Path",
+        "icon": "$(circle-slash)"
       }
     ],
     "menus": {
@@ -81,6 +96,11 @@
           "command": "code-merge.addFolder",
           "when": "resourceScheme == file && explorerResourceIsFolder",
           "group": "navigation@9"
+        },
+        {
+          "command": "code-merge.ignorePath",
+          "when": "resourceScheme == file",
+          "group": "navigation@10"
         }
       ],
       "editor/context": [
@@ -112,6 +132,16 @@
           "command": "code-merge.clearAll",
           "when": "view == codeMerge.items",
           "group": "navigation@3"
+        },
+        {
+          "command": "code-merge.openIgnoreSettings",
+          "when": "view == codeMerge.items",
+          "group": "navigation@4"
+        },
+        {
+          "command": "code-merge.reloadIgnoreRules",
+          "when": "view == codeMerge.items",
+          "group": "navigation@5"
         }
       ],
       "editor/title": [
@@ -175,6 +205,68 @@
           "contextualTitle": "Code Merge"
         }
       ]
+    },
+    "configuration": {
+      "title": "Code Merge",
+      "properties": {
+        "code-merge.ignore.additionalDirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra directory names to skip on top of the built-in list."
+        },
+        "code-merge.ignore.additionalExtensions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra file extensions to skip, e.g. pdf, zip, parquet."
+        },
+        "code-merge.ignore.additionalFilePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra gitignore-style patterns, e.g. *.log, secrets/*."
+        },
+        "code-merge.ignore.dotDirAllowlist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            ".github",
+            ".gitlab",
+            ".devcontainer"
+          ],
+          "description": "Dot-directories that should be traversed instead of skipped."
+        },
+        "code-merge.ignore.file": {
+          "type": "string",
+          "default": ".code-mergeignore",
+          "description": "Per-project ignore file (gitignore syntax). Leave empty to disable."
+        },
+        "code-merge.ignore.useGitignore": {
+          "type": "boolean",
+          "default": false,
+          "description": "Also honor the workspace .gitignore file."
+        },
+        "code-merge.maxFileSizeMB": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0.1,
+          "description": "Maximum size (in MB) for a file or selection to be merged."
+        },
+        "code-merge.autoOpenPreview": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically open the merged preview when items are added, if it isn't already open."
+        }
+      }
     }
   },
   "scripts": {
@@ -202,5 +294,8 @@
     "npm-run-all": "^4.1.5",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.0.0"
+  },
+  "dependencies": {
+    "ignore": "^7.0.9"
   }
 }

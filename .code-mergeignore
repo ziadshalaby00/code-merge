@@ -1,0 +1,13 @@
+# Code Merge — workspace-specific ignore rules
+# Uses .gitignore syntax. Lines starting with # are comments.
+
+# Local secrets that are NOT covered by the default rules
+config/secrets.yaml
+internal/keys/
+
+# Generated code we don't want to merge
+**/generated/**
+src/**/*.g.ts
+
+# Team-specific: skip docs for this repo
+docs/

@@ -2,52 +2,44 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { MergeStore } from './MergeStore';
 import { MergeItem, MergeRange } from './types';
-import { MAX_FILE_SIZE } from './ignoreRules';
+import { IgnoreRules } from './ignoreRules';
 
 export class FileSync implements vscode.Disposable {
   private static readonly EDIT_DEBOUNCE_MS = 250;
 
   private disposables: vscode.Disposable[] = [];
-
-  /** One debounce timer per fsPath (multi-file edits don't clobber). */
   private editTimers = new Map<string, NodeJS.Timeout>();
-
-  /**
-   * files the user actually added are watched, and only for as long as
-   * they remain in the store.
-   */
   private watchers = new Map<string, vscode.FileSystemWatcher>();
 
-  constructor(private store: MergeStore) {
+  constructor(
+    private store: MergeStore,
+    private rules: IgnoreRules
+  ) {
     this.disposables.push(
       vscode.workspace.onDidChangeTextDocument(e => this.onEdit(e)),
-      // Whenever items are added/removed, resync our watcher set.
-      store.onDidChange(() => this.reconcileWatchers())
+      store.onDidChange(() => this.reconcileWatchers()),
+      // Reload rules whenever the user changes settings.
+      vscode.workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration('code-merge')) {
+          void this.rules.reload();
+        }
+      })
     );
 
-    // Initial sync with whatever's already tracked (usually empty at
-    // activation, but harmless and future-proof).
+    void this.rules.reload();
     this.reconcileWatchers();
   }
 
-  /**
-   * Adds watchers for newly tracked files and disposes watchers for
-   * files that are no longer tracked. Cheap when nothing changed.
-   */
   private reconcileWatchers(): void {
     const wanted = new Set(this.store.allFsPaths);
 
-    // New files: create a watcher.
     for (const fsPath of wanted) {
       if (this.watchers.has(fsPath)) {
         continue;
       }
 
       const dir = vscode.Uri.file(path.dirname(fsPath));
-      const pattern = new vscode.RelativePattern(
-        dir,
-        path.basename(fsPath)
-      );
+      const pattern = new vscode.RelativePattern(dir, path.basename(fsPath));
       const watcher = vscode.workspace.createFileSystemWatcher(pattern);
 
       watcher.onDidChange(uri => void this.syncFromDisk(uri));
@@ -56,7 +48,6 @@ export class FileSync implements vscode.Disposable {
       this.watchers.set(fsPath, watcher);
     }
 
-    // Removed files: dispose the watcher.
     for (const [fsPath, watcher] of [...this.watchers]) {
       if (!wanted.has(fsPath)) {
         watcher.dispose();
@@ -90,7 +81,7 @@ export class FileSync implements vscode.Disposable {
       return;
     }
 
-    if (stat.size > MAX_FILE_SIZE) {
+    if (stat.size > this.rules.maxFileSize) {
       this.removeByPath(uri);
       return;
     }

@@ -3,9 +3,13 @@ import * as path from 'path';
 import { MergeStore } from '../core/MergeStore';
 import { newId } from '../core/ids';
 import { toRelative } from '../core/relativePath';
-import { MAX_FILE_SIZE } from '../core/ignoreRules';
+import { IgnoreRules } from '../core/ignoreRules';
+import { ensurePreviewOpen } from '../views/previewOpener';
 
-export function addFileCommand(store: MergeStore): vscode.Disposable {
+export function addFileCommand(
+  store: MergeStore,
+  rules: IgnoreRules
+): vscode.Disposable {
   return vscode.commands.registerCommand(
     'code-merge.addFile',
     async (uri?: vscode.Uri, uris?: vscode.Uri[]) => {
@@ -16,14 +20,13 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
         return;
       }
 
+      await rules.reload();
+
       let added = 0;
       let skipped = 0;
       let lastAddedLabel = '';
       const warnings = new Set<string>();
 
-      // First workspace of any *valid* target — including duplicates.
-      // This is what we'll switch to, so the preview follows the file
-      // the user explicitly acted on.
       let firstValidWorkspace: vscode.WorkspaceFolder | undefined;
 
       for (const target of targets) {
@@ -40,9 +43,9 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
           continue;
         }
 
-        if (stat.size > MAX_FILE_SIZE) {
+        if (stat.size > rules.maxFileSize) {
           warnings.add(
-            `Some files exceeded the max size (${MAX_FILE_SIZE / 1024 / 1024} MB) and were skipped.`
+            `Some files exceeded the max size (${rules.maxFileSize / 1024 / 1024} MB) and were skipped.`
           );
           skipped++;
           continue;
@@ -57,14 +60,10 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
           continue;
         }
 
-        // Record the first valid workspace as soon as we know the target
-        // belongs to one — even if it turns out to be a duplicate.
         if (!firstValidWorkspace) {
           firstValidWorkspace = workspaceFolder;
         }
 
-        // Prefer the in-memory editor buffer when the file is open, so
-        // unsaved edits are picked up. Fall back to disk otherwise.
         const openDoc = vscode.workspace.textDocuments.find(
           d => d.uri.scheme === 'file' && d.uri.fsPath === target.fsPath
         );
@@ -74,9 +73,9 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
         if (openDoc) {
           content = openDoc.getText();
 
-          if (Buffer.byteLength(content, 'utf8') > MAX_FILE_SIZE) {
+          if (Buffer.byteLength(content, 'utf8') > rules.maxFileSize) {
             warnings.add(
-              `Some files exceeded the max size (${MAX_FILE_SIZE / 1024 / 1024} MB) and were skipped.`
+              `Some files exceeded the max size (${rules.maxFileSize / 1024 / 1024} MB) and were skipped.`
             );
             skipped++;
             continue;
@@ -120,15 +119,17 @@ export function addFileCommand(store: MergeStore): vscode.Disposable {
         }
       }
 
-      // Switch the active workspace even if every target was rejected as
-      // a duplicate — the user explicitly targeted a file in that
-      // workspace, so the preview/copy/tree should follow it.
       if (firstValidWorkspace) {
         store.setActiveWorkspace(firstValidWorkspace.uri);
       }
 
       for (const w of warnings) {
         vscode.window.showWarningMessage(`Code Merge: ${w}`);
+      }
+
+      // Auto-open the preview the first time something gets added.
+      if (added > 0) {
+        void ensurePreviewOpen(store);
       }
 
       if (added && !skipped) {

@@ -39,11 +39,18 @@
   as you add, remove, or edit items.
 - **🔄 Live sync** — edits (including unsaved ones) and external changes
   (git pull, other editors) are picked up automatically. Files that are
-  deleted or that exceed 5 MB are dropped from the list.
+  deleted or that exceed the configured max size are dropped from the list.
 - **📋 One-click copy** — copy the entire merged content to the clipboard.
 - **🔒 Workspace isolation** — each workspace folder gets its own item
   list. The preview follows the active workspace as you switch between
   multi-root folders.
+- **⚙️ Configurable ignore rules** — extend the built-in ignore lists via
+  VS Code settings, a `.code-mergeignore` file (gitignore syntax), or by
+  enabling `.gitignore` support. Commands to open settings, reload rules,
+  and ignore a path from the Explorer are included.
+- **🚀 Auto-open preview** — the merged preview opens automatically beside
+  the current editor the first time you add an item. Disable it with
+  `code-merge.autoOpenPreview`.
 - **💾 Session-only state** — the selection list lives entirely in memory
   and resets when VS Code restarts. No disk writes, no state to clean up.
 
@@ -72,6 +79,15 @@ items. From there you can:
 
 Clicking any item in the tree opens its source file. For selections,
 the file opens scrolled to and highlighting the recorded range.
+
+### Managing ignore rules
+
+| Action | How |
+|---|---|
+| Open ignore settings | Command Palette → **Code Merge: Open Ignore Settings** |
+| Reload ignore rules | Command Palette or view title → **Code Merge: Reload Ignore Rules** |
+| Ignore a path | Right-click file/folder in Explorer → **Code Merge: Ignore This Path** |
+| Edit `.code-mergeignore` | Add gitignore-style patterns manually at the workspace root. |
 
 ### Example output
 
@@ -120,24 +136,24 @@ All shortcuts can be rebound from **Keyboard Shortcuts** (`Ctrl+K Ctrl+S`).
 
 ## ⚙️ Configuration
 
-No settings yet. Ignore rules are built-in and cover:
+| Setting | Type | Default | Description |
+|---|---|---|---|
+| `code-merge.ignore.additionalDirs` | `string[]` | `[]` | Extra directory names to skip on top of the built-in list. |
+| `code-merge.ignore.additionalExtensions` | `string[]` | `[]` | Extra file extensions to skip, e.g. `pdf`, `zip`, `parquet`. |
+| `code-merge.ignore.additionalFilePatterns` | `string[]` | `[]` | Extra gitignore-style patterns, e.g. `*.log`, `secrets/*`. |
+| `code-merge.ignore.dotDirAllowlist` | `string[]` | `[".github", ".gitlab", ".devcontainer"]` | Dot-directories that should be traversed instead of skipped. |
+| `code-merge.ignore.file` | `string` | `.code-mergeignore` | Per-project ignore file (gitignore syntax). Leave empty to disable. |
+| `code-merge.ignore.useGitignore` | `boolean` | `false` | Also honor the workspace `.gitignore` file. |
+| `code-merge.maxFileSizeMB` | `number` | `5` | Maximum size (in MB) for a file or selection to be merged. |
+| `code-merge.autoOpenPreview` | `boolean` | `true` | Automatically open the merged preview when items are added, if it isn't already open. |
 
-- **Directories** — `node_modules`, `.git`, `dist`, `build`, `out`,
-  `coverage`, `target`, `.venv`, `__pycache__`, `.next`, `.cache`, …
-  (`.github`, `.gitlab`, and `.devcontainer` are *not* ignored so CI
-  configs can be merged.)
-- **Extensions** — images, audio/video, archives, binaries, fonts,
-  documents, databases, logs.
-- **Filenames** — `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`,
-  `Cargo.lock`, `.env`, `.env.*`, etc.
-- **Size** — files (and selections) larger than **5 MB** are skipped
-  automatically.
-- **Symlinks** — skipped during folder scans to avoid cycles and
-  duplicate content.
+Built-in ignore rules still cover common directories, extensions,
+filenames, symlinks, and the configured size cap.
 
 ---
 
 ## 📋 Requirements
 
 - VS Code **1.85.0** or newer.
-- No external dependencies.
+- The extension bundles the `ignore` npm package; no user-installed
+  dependencies are required.

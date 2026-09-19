@@ -1,3 +1,41 @@
+## [0.3.0] — 2025-XX-XX
+
+### Added
+- **Configurable ignore rules** — new settings under `code-merge.ignore.*`
+  and `code-merge.maxFileSizeMB`.
+- **`.code-mergeignore` support** — per-project ignore file using
+  gitignore syntax.
+- **Optional `.gitignore` integration** via `code-merge.ignore.useGitignore`.
+- **New commands**:
+  - `Code Merge: Open Ignore Settings`
+  - `Code Merge: Reload Ignore Rules`
+  - `Code Merge: Ignore This Path`
+- **Auto-open preview** — the merged preview opens automatically the first
+  time an item is added. Controlled by `code-merge.autoOpenPreview`.
+- **Output channel** — `Code Merge` output channel for ignore-rule
+  diagnostics.
+- **`previewOpener.ts`** — helper to open the preview without stealing
+  focus or re-opening it on every add.
+- **`ignore` dependency** — gitignore-style pattern matching.
+
+### Changed
+- `IgnoreRules` is now a dynamic, reloadable service instead of static
+  constants.
+- `FileSync`, `addFile`, `addFolder`, and `addSelection` now use the shared
+  `IgnoreRules` instance and respect runtime settings.
+- `tsconfig.json` adds `esModuleInterop` and `skipLibCheck` for CJS
+  interop.
+- `package.json` now contributes configuration and depends on `ignore`.
+- Version bumped to `0.3.0`.
+
+### Fixed
+- Ignore patterns now match relative to the workspace root even when
+  scanning a subfolder.
+- Dot-directory allowlist is configurable while preserving the default
+  `.github`, `.gitlab`, `.devcontainer` behaviour.
+
+---
+
 ## [0.2.0] — 2025-XX-XX
 
 ### Added
