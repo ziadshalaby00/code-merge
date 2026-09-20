@@ -1,4 +1,4 @@
-## [0.5.0] — 2026-XX-XX
+## [0.5.0] — 2026-09-20
 
 ### Added
 - **Preview size guard** — new setting `code-merge.maxPreviewSizeChars`
@@ -25,11 +25,55 @@
 - **`FileSync` no longer imports from `commands/`.** The size guard is
   imported from `views/previewOpener` instead, restoring the
   `core → views` (never `core → commands`) dependency direction.
+- **`IgnoreRules.reload()` is now atomic.** All new values (additional
+  dirs, extensions, dot-dir allowlist, pattern matcher, max size) are
+  built into local variables first, then swapped onto `this` in a single
+  synchronous step. Any in-flight folder scan either sees the complete
+  old snapshot or the complete new one — never a partially updated rule
+  set.
+- **`Add File` caches `fs.stat` results within a single invocation.**
+  The pre-scan and the add loop now share one `statCache`, so each
+  target's metadata is read at most once instead of twice. Noticeable
+  on multi-select batches over network drives or large folders.
+- **`Add Folder` no longer offers "Add Anyway" for pattern-ignored
+  folders.** When a folder is matched by a pattern (from
+  `.code-mergeignore`, `.gitignore`, or `additionalFilePatterns`),
+  the confirmation dialog now shows only "OK" and returns immediately —
+  because a pattern that matches the folder also matches everything
+  underneath, so scanning would yield zero files anyway. Dialog text
+  updated to say "No files from inside it will be added" instead of
+  "Add Anyway will NOT add any files from inside it".
+- **`escapeMd` in the tree tooltip simplified.** The markdown escape
+  regex now only covers the characters that can actually appear inside
+  the `**bold**` and `` `code` `` spans used in the tooltip
+  (`\`, `` ` ``, `*`, `_`, `[`, `]`). Fewer backslashes leak into
+  tooltip text for file paths that contain punctuation.
+
+### Fixed
+- **Selection ranges now survive overlapping edits correctly.**
+  `adjustRange` recomputes `startLine` and `endLine` independently when
+  an edit lands on top of a tracked range. If the edit's start falls
+  inside the range, the new start anchors to the edit's start line; if
+  the edit's replaced span reaches past the range's end, the new end
+  anchors to where the inserted text ends. Previously the start was kept
+  stale and only the end was adjusted, which could leave a selection
+  pointing at the wrong lines after a partial overwrite.
+- **Manual "Open Preview" now restores focus to the previous editor.**
+  When the preview tab was already open, the command used to pin it and
+  return without refocusing the editor you came from. It now reopens
+  that editor at its original view column, matching the behaviour of
+  the auto-open path.
+- **Auto-open preview now locks/pins the tab the same way the manual
+  "Open Preview" command does**, and restores focus to the editor you
+  were working in.
 
 ### Notes
 - **The size guard only ever closes a preview that a live edit pushed
   over the limit.** The first add of a large folder still opens the
   preview normally — the guard only kicks in on subsequent edits.
+- **Ignore-rule reloads are atomic by design.** A folder scan that's
+  already in flight when you change a setting will finish using the
+  previous rule set; the next scan picks up the new one.
 
 ---
 
