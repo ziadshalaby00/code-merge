@@ -11,3 +11,14 @@ src/**/*.g.ts
 
 # Team-specific: skip docs for this repo
 docs/
+
+resources/
+
+.gitignore
+.code-mergeignore
+.vscode-test.mjs
+.vscodeignore
+esbuild.js
+eslint.config.mjs
+LICENSE
+tsconfig.json

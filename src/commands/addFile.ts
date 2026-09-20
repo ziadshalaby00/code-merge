@@ -70,25 +70,37 @@ export function addFileCommand(
 
       let firstValidWorkspace: vscode.WorkspaceFolder | undefined;
 
+      const statCache = new Map<string, vscode.FileStat>();
+
+      async function getStat(uri: vscode.Uri): Promise<vscode.FileStat | undefined> {
+        const key = uri.fsPath;
+        if (statCache.has(key)) {
+          return statCache.get(key);
+        }
+        try {
+          const stat = await vscode.workspace.fs.stat(uri);
+          statCache.set(key, stat);
+          return stat;
+        } catch {
+          return undefined;
+        }
+      }
+
       // Pre-scan: figure out which targets are covered by an ignore rule,
       // so we can ask the user once (not per-file) before adding any of
       // them.
       const ignoredFsPaths = new Set<string>();
       for (const target of targets) {
-        try {
-          const stat = await vscode.workspace.fs.stat(target);
-          if (stat.type !== vscode.FileType.File) {
-            continue;
-          }
-          const targetWorkspace = vscode.workspace.getWorkspaceFolder(target);
-          if (!targetWorkspace) {
-            continue;
-          }
-          if (rules.isPathIgnored(toRelative(target))) {
-            ignoredFsPaths.add(target.fsPath);
-          }
-        } catch {
-          // Unreadable target — let the main loop below report it.
+        const stat = await getStat(target);
+        if (!stat || stat.type !== vscode.FileType.File) {
+          continue;
+        }
+        const targetWorkspace = vscode.workspace.getWorkspaceFolder(target);
+        if (!targetWorkspace) {
+          continue;
+        }
+        if (rules.isPathIgnored(toRelative(target))) {
+          ignoredFsPaths.add(target.fsPath);
         }
       }
 
@@ -107,10 +119,8 @@ export function addFileCommand(
       }
 
       for (const target of targets) {
-        let stat: vscode.FileStat;
-        try {
-          stat = await vscode.workspace.fs.stat(target);
-        } catch {
+        const stat = await getStat(target);
+        if (!stat) {
           skipped++;
           continue;
         }

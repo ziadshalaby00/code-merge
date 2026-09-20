@@ -10,23 +10,29 @@ import { MergeItem, MergeRange } from './types';
  */
 export class MergeStore implements vscode.Disposable {
   private items: MergeItem[] = [];
+
+  private itemIndex = new Map<string, MergeItem>();
+  private idIndex = new Map<string, MergeItem>();
+  private fsPathIndex = new Map<string, MergeItem[]>();
+
+  /**
+   * Running total of `content.length` per workspace, kept in sync
+   * incrementally on every insert/remove/content update — never
+   * recomputed from scratch. Backs the preview-size guard
+   * (see `views/previewOpener.ts`) so checking "is this workspace's
+   * merged output too big?" is an O(1) lookup, not a full scan.
+   */
+  private contentSize = new Map<string, number>();
+
   private emitter = new vscode.EventEmitter<void>();
   readonly onDidChange = this.emitter.event;
   private activeWorkspaceUri?: string;
 
   constructor() {
-    // No persistence: each activation starts fresh. Default the active
-    // workspace to the first folder (if any) so preview/copy work
-    // immediately.
     this.activeWorkspaceUri =
       vscode.workspace.workspaceFolders?.[0]?.uri.toString();
   }
 
-  /**
-   * Sets the active workspace. Each workspace has its own isolated list
-   * of items; the preview, tree view, and copy command reflect this
-   * workspace until it is switched again.
-   */
   public setActiveWorkspace(uri: vscode.Uri): void {
     const next = uri.toString();
     if (this.activeWorkspaceUri === next) {
@@ -45,10 +51,6 @@ export class MergeStore implements vscode.Disposable {
     );
   }
 
-  /**
-   * Items belonging to the **active workspace only**.
-   * This is what the tree view, preview, and copy commands consume.
-   */
   get all(): readonly MergeItem[] {
     const key = this.activeWorkspaceUri;
     if (!key) {
@@ -61,23 +63,72 @@ export class MergeStore implements vscode.Disposable {
     return this.all.length;
   }
 
-  /**
-   * Distinct absolute paths of every tracked item, across all workspaces.
-   * Used by FileSync to create one watcher per tracked file.
-   */
   get allFsPaths(): string[] {
-    return [...new Set(this.items.map(i => i.fsPath))];
+    return [...this.fsPathIndex.keys()];
+  }
+
+  /**
+   * Total tracked content size (characters) for `workspaceUri`.
+   * O(1) — backed by the running counter in `contentSize`.
+   */
+  getContentSize(workspaceUri: vscode.Uri): number {
+    return this.contentSize.get(workspaceUri.toString()) ?? 0;
+  }
+
+  private keyOf(item: MergeItem): string {
+    const start = item.range?.startLine ?? '';
+    const end = item.range?.endLine ?? '';
+    return `${item.workspaceFolder}|${item.fsPath}|${item.kind}|${start}|${end}`;
   }
 
   private isDuplicate(item: MergeItem): boolean {
-    return this.items.some(
-      i =>
-        i.workspaceFolder === item.workspaceFolder &&
-        i.fsPath === item.fsPath &&
-        i.kind === item.kind &&
-        i.range?.startLine === item.range?.startLine &&
-        i.range?.endLine === item.range?.endLine
-    );
+    return this.itemIndex.has(this.keyOf(item));
+  }
+
+  /** Adjusts the running size counter for a workspace by `delta`. */
+  private addSize(workspaceFolder: string, delta: number): void {
+    if (delta === 0) {
+      return;
+    }
+    const current = this.contentSize.get(workspaceFolder) ?? 0;
+    const next = current + delta;
+    if (next <= 0) {
+      this.contentSize.delete(workspaceFolder);
+    } else {
+      this.contentSize.set(workspaceFolder, next);
+    }
+  }
+
+  private insert(item: MergeItem): void {
+    this.items.push(item);
+    this.itemIndex.set(this.keyOf(item), item);
+    this.idIndex.set(item.id, item);
+
+    const bucket = this.fsPathIndex.get(item.fsPath);
+    if (bucket) {
+      bucket.push(item);
+    } else {
+      this.fsPathIndex.set(item.fsPath, [item]);
+    }
+
+    this.addSize(item.workspaceFolder, item.content.length);
+  }
+
+  private unindex(item: MergeItem): void {
+    this.itemIndex.delete(this.keyOf(item));
+    this.idIndex.delete(item.id);
+
+    const bucket = this.fsPathIndex.get(item.fsPath);
+    if (bucket) {
+      const next = bucket.filter(i => i.id !== item.id);
+      if (next.length) {
+        this.fsPathIndex.set(item.fsPath, next);
+      } else {
+        this.fsPathIndex.delete(item.fsPath);
+      }
+    }
+
+    this.addSize(item.workspaceFolder, -item.content.length);
   }
 
   add(item: MergeItem): boolean {
@@ -87,7 +138,7 @@ export class MergeStore implements vscode.Disposable {
     if (this.isDuplicate(item)) {
       return false;
     }
-    this.items.push(item);
+    this.insert(item);
     this.emitter.fire();
     return true;
   }
@@ -101,7 +152,7 @@ export class MergeStore implements vscode.Disposable {
         skipped++;
         continue;
       }
-      this.items.push(item);
+      this.insert(item);
       added++;
     }
 
@@ -113,39 +164,42 @@ export class MergeStore implements vscode.Disposable {
   }
 
   remove(id: string): void {
-    const before = this.items.length;
-    this.items = this.items.filter(i => i.id !== id);
-    if (this.items.length !== before) {
-      this.emitter.fire();
+    const item = this.idIndex.get(id);
+    if (!item) {
+      return;
     }
+    const idx = this.items.indexOf(item);
+    if (idx !== -1) {
+      this.items.splice(idx, 1);
+    }
+    this.unindex(item);
+    this.emitter.fire();
   }
 
-  /**
-   * Returns items (across all workspaces) whose fsPath matches.
-   * Used by the file-sync layer to find what to update.
-   */
   itemsByFsPath(fsPath: string): MergeItem[] {
-    return this.items.filter(i => i.fsPath === fsPath);
+    return this.fsPathIndex.get(fsPath) ?? [];
   }
 
-  /** Fast existence check — avoids allocating an array for non-tracked files. */
   hasFsPath(fsPath: string): boolean {
-    return this.items.some(i => i.fsPath === fsPath);
+    return this.fsPathIndex.has(fsPath);
   }
 
   /**
    * Bulk-updates item content. Fires a single change event if anything
-   * actually changed. Used by the file-sync layer.
+   * actually changed. Used by the file-sync layer — the running size
+   * counter is adjusted by exactly the character delta of each change,
+   * so there's no need to inspect what was added/removed.
    */
   updateContents(
     updates: readonly { id: string; content: string }[]
   ): void {
     let changed = false;
     for (const { id, content } of updates) {
-      const item = this.items.find(i => i.id === id);
+      const item = this.idIndex.get(id);
       if (!item || item.content === content) {
         continue;
       }
+      this.addSize(item.workspaceFolder, content.length - item.content.length);
       item.content = content;
       changed = true;
     }
@@ -158,16 +212,16 @@ export class MergeStore implements vscode.Disposable {
     updates: readonly { id: string; range: MergeRange | null }[]
   ): void {
     let changed = false;
-    const toRemove = new Set<string>();
+    const toRemove: MergeItem[] = [];
 
     for (const { id, range } of updates) {
-      const item = this.items.find(i => i.id === id);
+      const item = this.idIndex.get(id);
       if (!item) {
         continue;
       }
 
       if (range === null) {
-        toRemove.add(id);
+        toRemove.push(item);
         changed = true;
         continue;
       }
@@ -176,13 +230,19 @@ export class MergeStore implements vscode.Disposable {
         item.range?.startLine !== range.startLine ||
         item.range?.endLine !== range.endLine
       ) {
+        this.itemIndex.delete(this.keyOf(item));
         item.range = range;
+        this.itemIndex.set(this.keyOf(item), item);
         changed = true;
       }
     }
 
-    if (toRemove.size) {
-      this.items = this.items.filter(i => !toRemove.has(i.id));
+    if (toRemove.length) {
+      const toRemoveIds = new Set(toRemove.map(i => i.id));
+      this.items = this.items.filter(i => !toRemoveIds.has(i.id));
+      for (const item of toRemove) {
+        this.unindex(item);
+      }
     }
 
     if (changed) {
@@ -190,20 +250,19 @@ export class MergeStore implements vscode.Disposable {
     }
   }
 
-  /**
-   * Removes items matching a predicate, scoped to a specific workspace
-   * (not necessarily the currently active one). Fires a single change
-   * event if anything was removed. Returns the count removed.
-   */
   prune(
     workspaceUri: vscode.Uri,
     shouldRemove: (item: MergeItem) => boolean
   ): number {
     const key = workspaceUri.toString();
     const before = this.items.length;
-    this.items = this.items.filter(
-      i => i.workspaceFolder !== key || !shouldRemove(i)
-    );
+    this.items = this.items.filter(i => {
+      if (i.workspaceFolder !== key || !shouldRemove(i)) {
+        return true;
+      }
+      this.unindex(i);
+      return false;
+    });
     const removed = before - this.items.length;
 
     if (removed > 0) {
@@ -213,29 +272,33 @@ export class MergeStore implements vscode.Disposable {
     return removed;
   }
 
-  /**
-   * Removes every item (across all workspaces) pointing at fsPath.
-   * Fires a change event if anything was removed.
-   */
   removeByFsPath(fsPath: string): void {
     const before = this.items.length;
-    this.items = this.items.filter(i => i.fsPath !== fsPath);
+    this.items = this.items.filter(i => {
+      if (i.fsPath !== fsPath) {
+        return true;
+      }
+      this.unindex(i);
+      return false;
+    });
     if (this.items.length !== before) {
       this.emitter.fire();
     }
   }
 
-  /**
-   * Clears items **only for the active workspace**.
-   * Other workspaces are untouched.
-   */
   clear(): void {
     const key = this.activeWorkspaceUri;
     if (!key) {
       return;
     }
     const before = this.items.length;
-    this.items = this.items.filter(i => i.workspaceFolder !== key);
+    this.items = this.items.filter(i => {
+      if (i.workspaceFolder !== key) {
+        return true;
+      }
+      this.unindex(i);
+      return false;
+    });
     if (this.items.length !== before) {
       this.emitter.fire();
     }

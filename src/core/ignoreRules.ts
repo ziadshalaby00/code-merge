@@ -110,27 +110,31 @@ export class IgnoreRules {
   async reload(workspaceRoot?: vscode.Uri): Promise<void> {
     const cfg = vscode.workspace.getConfiguration('code-merge', workspaceRoot);
 
-    this.additionalDirs = new Set(
+    // Build everything into local variables first — nothing on `this`
+    // is touched yet, so any in-flight operation reading the current
+    // rules keeps seeing a fully consistent (old) snapshot until the
+    // atomic swap at the end.
+    const nextAdditionalDirs = new Set(
       cfg.get<string[]>('ignore.additionalDirs', [])
     );
 
-    this.additionalExts = new Set(
+    const nextAdditionalExts = new Set(
       cfg
         .get<string[]>('ignore.additionalExtensions', [])
         .map(ext => ext.replace(/^\./, '').toLowerCase())
     );
 
-    this.dotDirAllowlist = new Set(
+    const nextDotDirAllowlist = new Set(
       cfg.get<string[]>('ignore.dotDirAllowlist', [...DEFAULT_DOT_DIR_ALLOWLIST])
     );
 
-    this._maxFileSize = cfg.get<number>('maxFileSizeMB', 5) * 1024 * 1024;
+    const nextMaxFileSize = cfg.get<number>('maxFileSizeMB', 5) * 1024 * 1024;
 
-    this.patternMatcher = ignore();
+    const nextPatternMatcher: Ignore = ignore();
 
     const inline = cfg.get<string[]>('ignore.additionalFilePatterns', []);
     if (inline.length) {
-      this.patternMatcher.add(inline);
+      nextPatternMatcher.add(inline);
       this.log(`loaded ${inline.length} inline pattern(s)`);
     }
 
@@ -138,18 +142,28 @@ export class IgnoreRules {
 
     const ignoreFileName = cfg.get<string>('ignore.file', '.code-mergeignore');
     if (root && ignoreFileName) {
-      await this.loadIgnoreFile(
+      await this.loadIgnoreFileInto(
+        nextPatternMatcher,
         vscode.Uri.joinPath(root, ignoreFileName),
         ignoreFileName
       );
     }
 
     if (root && cfg.get<boolean>('ignore.useGitignore', false)) {
-      await this.loadIgnoreFile(
+      await this.loadIgnoreFileInto(
+        nextPatternMatcher,
         vscode.Uri.joinPath(root, '.gitignore'),
         '.gitignore'
       );
     }
+
+    // Atomic swap: every field flips in one synchronous step, so no
+    // concurrent reader ever sees a mix of old and new state.
+    this.additionalDirs = nextAdditionalDirs;
+    this.additionalExts = nextAdditionalExts;
+    this.dotDirAllowlist = nextDotDirAllowlist;
+    this._maxFileSize = nextMaxFileSize;
+    this.patternMatcher = nextPatternMatcher;
 
     this.log(`reload() complete — workspace root: ${root?.fsPath ?? '<none>'}`);
     this.log(`  additionalDirs: ${[...this.additionalDirs].join(', ') || '(none)'}`);
@@ -159,7 +173,8 @@ export class IgnoreRules {
     this.log(`  maxFileSize: ${(this._maxFileSize / 1024 / 1024).toFixed(1)} MB`);
   }
 
-  private async loadIgnoreFile(
+  private async loadIgnoreFileInto(
+    matcher: Ignore,
     uri: vscode.Uri,
     label: string
   ): Promise<void> {
@@ -167,7 +182,7 @@ export class IgnoreRules {
       const bytes = await vscode.workspace.fs.readFile(uri);
       const text = Buffer.from(bytes).toString('utf8');
       const lineCount = text.split(/\r?\n/).filter(l => l.trim()).length;
-      this.patternMatcher.add(text);
+      matcher.add(text);
       this.log(`loaded ${label} (${lineCount} non-empty lines)`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

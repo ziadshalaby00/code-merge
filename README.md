@@ -3,16 +3,13 @@
 > Select files, folders, or code snippets and merge them into a single
 > live markdown preview — with a project tree, per-file headers, item
 > counts, and configurable ignore rules. Perfect for feeding context to
-> LLMs (ChatGPT, Claude, Copilot) or sharing code snapshots with your
-> team.
-
+> LLMs (ChatGPT, Claude, Copilot) or sharing code snapshots with your team.
 
 [![GitHub](https://img.shields.io/badge/GitHub-ziadshalaby00-181717?logo=github)](https://github.com/ziadshalaby00/code-merge)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.85%2B-blue?logo=visualstudiocode)](https://code.visualstudio.com/)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/ziadshalaby00.code-merge?label=VS%20Code%20Marketplace&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=ziadshalaby00.code-merge)
 [![Open VSX](https://img.shields.io/open-vsx/v/ziadshalaby00/code-merge?label=Open%20VSX)](https://open-vsx.org/extension/ziadshalaby00/code-merge)
-
 
 <p>
   <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/1.png" width="32%">
@@ -28,36 +25,31 @@
 
 ## ✨ Features
 
-- **📁 Add files** — right-click any file in the Explorer, or use the keyboard.
-- **📂 Add folders** — recursively scan a folder with smart ignore rules
-  (`node_modules`, `.git`, `dist`, `.venv`, binaries, lockfiles, …).
-  Symlinks are skipped, so cyclic links never hang the scan.
-- **✂️ Add selections** — grab a range of lines from the current editor
-  (supports multi-cursor with `Ctrl+D`).
+- **📁 Add files / folders / selections** — right-click in the Explorer,
+  select code in the editor, or use a keyboard shortcut. Folder scans
+  follow smart ignore rules (`node_modules`, `.git`, `dist`, binaries,
+  lockfiles, …) and skip symlinks to avoid infinite loops.
 - **🌲 Project tree** — every merged output starts with an ASCII tree of
   the selected items, including line ranges for selections.
-- **🪟 Virtual preview** — the merged output is a live, in-memory
-  document. Nothing is written to your workspace; the preview updates
-  as you add, remove, or edit items.
+- **🪟 Virtual preview** — a live, in-memory document. Nothing is written
+  to disk; the preview updates as you add, remove, or edit items.
 - **🔄 Live sync** — edits (including unsaved ones) and external changes
-  (git pull, other editors) are picked up automatically. Files that are
-  deleted or that exceed the configured max size are dropped from the list.
+  (git pull, other editors) are picked up automatically. Deleted or
+  oversized files are dropped from the list.
+- **🛡️ Preview size guard** — the preview closes itself if the merged
+  output grows past `code-merge.maxPreviewSizeChars` while you're
+  editing, so a runaway edit can't freeze the editor. Reopen it
+  manually, or use **Copy Merged Content**.
 - **📋 One-click copy** — copy the entire merged content to the clipboard.
 - **🔒 Workspace isolation** — each workspace folder gets its own item
-  list. The preview follows the active workspace as you switch between
+  list; the preview follows the active workspace as you switch between
   multi-root folders.
-- **⚙️ Configurable ignore rules** — extend the built-in ignore lists via
-  VS Code settings, a `.code-mergeignore` file (gitignore syntax), or by
-  enabling `.gitignore` support. Ignore files are read from each
-  workspace folder's root only (nested files are not read). Commands to
-  open settings, reload rules, and ignore a path from the Explorer are
-  included.
-- **🚀 Auto-open preview** — the merged preview opens automatically beside
-  the current editor the first time you add an item. Disable it with
-  `code-merge.autoOpenPreview`.
-- **🧮 Item count in the header** — the project-structure header shows a
-  summary like `(12 files, 3 selections)` so you know exactly how much
-  content you're about to copy.
+- **⚙️ Configurable ignore rules** — extend the built-in lists via
+  VS Code settings, a `.code-mergeignore` file (gitignore syntax), or
+  by enabling `.gitignore` support. Ignore files are read from each
+  workspace folder's root only.
+- **🚀 Auto-open preview** — opens beside the current editor the first
+  time you add an item. Disable with `code-merge.autoOpenPreview`.
 - **💾 Session-only state** — the selection list lives entirely in memory
   and resets when VS Code restarts. No disk writes, no state to clean up.
 
@@ -81,8 +73,7 @@ items. From there you can:
 - **Preview** (`$(open-preview)`) — opens the merged output as a
   read-only virtual document beside the current editor.
 - **Copy** (`$(copy)`) — copies the full merged output to the clipboard.
-- **Clear** (`$(clear-all)`) — removes every item for the current
-  workspace.
+- **Clear** (`$(clear-all)`) — removes every item for the current workspace.
 
 Clicking any item in the tree opens its source file. For selections,
 the file opens scrolled to and highlighting the recorded range.
@@ -96,33 +87,28 @@ the file opens scrolled to and highlighting the recorded range.
 | Ignore a path | Right-click file/folder in Explorer → **Code Merge: Ignore This Path** |
 | Edit `.code-mergeignore` | Add gitignore-style patterns manually at the workspace root. |
 
-> **Add File** works on one workspace folder at a time. In a multi-root
-> workspace, selecting files from more than one folder in a single
-> action will be rejected — add them folder by folder.
+> **Multi-root workspaces:** **Add File** works on one workspace folder
+> at a time — selecting files from more than one folder in a single
+> action will be rejected. Add them folder by folder.
 
 > **Add Anyway and pattern-ignored folders:** If a folder is ignored by
-> a *name* (`node_modules`, `dist`, anything in
-> `code-merge.ignore.additionalDirs`, or a non-allowlisted dot-dir),
-> **Add Anyway** adds the non-ignored files inside it. But if the
+> a *name* (`node_modules`, `dist`, `additionalDirs`, non-allowlisted
+> dot-dirs), **Add Anyway** adds the non-ignored files inside it. If the
 > folder is ignored by a *pattern* (from `.code-mergeignore`,
-> `.gitignore`, or `code-merge.ignore.additionalFilePatterns`),
-> **Add Anyway** cannot add anything — the pattern matches every file
-> underneath. To add specific files from a pattern-ignored folder, use
-> **Code Merge: Add File** on each one instead.
+> `.gitignore`, or `additionalFilePatterns`), **Add Anyway** cannot add
+> anything — the pattern matches every file underneath. Use
+> **Code Merge: Add File** on specific files instead.
 
-> **Ignore files are read from the workspace folder's root only.**
+> **Ignore files are read from each workspace folder's root only.**
 > `.code-mergeignore` and `.gitignore` (when
-> `code-merge.ignore.useGitignore` is enabled) are resolved against
-> the root of the workspace folder that owns the file or folder being
-> added. Nested `.gitignore` files inside subfolders are **not** read,
-> and a `.code-workspace` file's directory is not treated as a root —
-> each workspace folder uses its own ignore files.
+> `code-merge.ignore.useGitignore` is enabled) are resolved against the
+> root of the workspace folder that owns the file being added. Nested
+> ignore files are **not** read.
 
 > **Note:** Adding a path to your ignore rules doesn't remove items
-> that are already in the merge list. Re-run **Add Folder** on an
-> ancestor folder to prune anything that now matches — the status bar
-> will report how many items were removed (e.g. `removed 3
-> now-ignored`).
+> already in the merge list. Re-run **Add Folder** on an ancestor folder
+> to prune — the status bar reports how many were removed (e.g.
+> `removed 3 now-ignored`).
 
 ### Example output
 
@@ -181,6 +167,7 @@ All shortcuts can be rebound from **Keyboard Shortcuts** (`Ctrl+K Ctrl+S`).
 | `code-merge.ignore.useGitignore` | `boolean` | `false` | Also honor the workspace `.gitignore` file. |
 | `code-merge.maxFileSizeMB` | `number` | `5` | Maximum size (in MB) for a file or selection to be merged. |
 | `code-merge.autoOpenPreview` | `boolean` | `true` | Automatically open the merged preview when items are added, if it isn't already open. |
+| `code-merge.maxPreviewSizeChars` | `number` | `5000000` | Maximum total size (characters) of the merged output. If live edits push the content past this limit, the preview closes automatically to keep the editor responsive. It can be reopened manually. |
 
 Built-in ignore rules still cover common directories, extensions,
 filenames, symlinks, and the configured size cap.

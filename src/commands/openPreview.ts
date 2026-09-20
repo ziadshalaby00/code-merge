@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
-import { MergeStore } from '../core/MergeStore';
 import { MergeDocumentProvider } from '../views/MergeDocumentProvider';
-import { lockAndKeep } from '../views/previewOpener';
+import { MergeStore } from '../core/MergeStore';
+import {
+  lockAndKeep,
+  resetPreviewSizeWarning,
+} from '../views/previewOpener';
 
 export function openPreviewCommand(store: MergeStore): vscode.Disposable {
   return vscode.commands.registerCommand('code-merge.openPreview', async () => {
@@ -12,6 +15,10 @@ export function openPreviewCommand(store: MergeStore): vscode.Disposable {
       );
       return;
     }
+
+    // Manual open — allow a fresh size warning if a later edit pushes
+    // the content over the limit again.
+    resetPreviewSizeWarning(folder.uri);
 
     const uri = MergeDocumentProvider.uri();
     const previous = vscode.window.activeTextEditor;
@@ -29,6 +36,13 @@ export function openPreviewCommand(store: MergeStore): vscode.Disposable {
             preserveFocus: false,
           });
           await lockAndKeep();
+
+          if (previous) {
+            await vscode.window.showTextDocument(previous.document, {
+              viewColumn: previous.viewColumn,
+              preserveFocus: false,
+            });
+          }
           return;
         }
       }

@@ -103,21 +103,28 @@ async function confirmIgnoredRoot(
   folderName: string,
   reason: DirSkipReason
 ): Promise<boolean> {
-  let detail: string;
-
   if (reason === 'pattern') {
-    detail =
+    const detail =
       `"${folderName}" is ignored by a pattern (from .code-mergeignore, ` +
       `.gitignore, or additionalFilePatterns).\n\n` +
-      `Add Anyway will NOT add any files from inside it, because the ` +
-      `pattern matches everything under this folder. To add a specific ` +
-      `file, use "Code Merge: Add File" on it instead.`;
-  } else {
-    detail =
-      `"${folderName}" is normally ignored.\n\n` +
-      `Add Anyway will add the non-ignored files inside it ` +
-      `(binaries, lockfiles, and other ignored files will still be skipped).`;
+      `No files from inside it will be added, because the pattern ` +
+      `matches everything under this folder. To add a specific file, ` +
+      `use "Code Merge: Add File" on it instead.`;
+
+    await vscode.window.showWarningMessage(
+      `Code Merge: ${detail}`,
+      { modal: true },
+      'OK'
+    );
+
+    // Nothing will be added either way, so there's no point scanning.
+    return false;
   }
+
+  const detail =
+    `"${folderName}" is normally ignored.\n\n` +
+    `Add Anyway will add the non-ignored files inside it ` +
+    `(binaries, lockfiles, and other ignored files will still be skipped).`;
 
   const pick = await vscode.window.showWarningMessage(
     `Code Merge: ${detail}`,

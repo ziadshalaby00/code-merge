@@ -3,6 +3,7 @@ import * as path from 'path';
 import { MergeStore } from './MergeStore';
 import { MergeItem, MergeRange } from './types';
 import { IgnoreRules } from './ignoreRules';
+import { enforcePreviewSizeLimit } from '../views/previewOpener';
 
 export class FileSync implements vscode.Disposable {
   private static readonly EDIT_DEBOUNCE_MS = 250;
@@ -196,6 +197,14 @@ export class FileSync implements vscode.Disposable {
     }));
 
     this.store.updateContents(updates);
+
+    // Check the size guard for every workspace touched by this sync —
+    // normally just one, but stay safe in case the same fsPath is
+    // somehow tracked under more than one workspace folder.
+    const workspaces = new Set(items.map(i => i.workspaceFolder));
+    for (const wsUriString of workspaces) {
+      void enforcePreviewSizeLimit(this.store, vscode.Uri.parse(wsUriString));
+    }
   }
 
   private removeByPath(uri: vscode.Uri): void {
@@ -236,6 +245,7 @@ function adjustRange(
     return range;
   }
 
+  // Edit entirely before the range: shift both bounds by delta.
   if (ce <= start0) {
     return {
       startLine: range.startLine + delta,
@@ -243,17 +253,30 @@ function adjustRange(
     };
   }
 
+  // Edit entirely after the range: unaffected.
   if (cs > end0) {
     return range;
   }
 
-  const newEnd0 = end0 + delta;
-  if (newEnd0 < start0) {
+  // Overlapping edit: recompute start and end independently, since
+  // either end of the range may have been swallowed by the replaced
+  // text.
+  //
+  // - If the edit starts at or before our start line, that line was
+  //   consumed by the edit — anchor the new start to where the edit
+  //   begins (cs), not to the stale original start.
+  // - If the edit's replaced span reaches past our end line, that line
+  //   was consumed too — anchor the new end to where the inserted
+  //   text ends (cs + newNewlines).
+  const newStart0 = cs <= start0 ? cs : start0;
+  const newEnd0 = ce > end0 ? cs + newNewlines : end0 + delta;
+
+  if (newEnd0 < newStart0) {
     return null;
   }
 
   return {
-    startLine: range.startLine,
+    startLine: newStart0 + 1,
     endLine: newEnd0 + 1,
   };
 }

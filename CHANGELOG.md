@@ -1,3 +1,38 @@
+## [0.5.0] — 2026-XX-XX
+
+### Added
+- **Preview size guard** — new setting `code-merge.maxPreviewSizeChars`
+  (default 5,000,000 characters). If live edits push the merged output
+  past this limit while the preview is open, the preview tab closes
+  automatically and a one-time warning is shown, so further edits don't
+  trigger a full re-render and slow down the editor. The preview can
+  still be reopened manually; opening it again resets the warning so
+  you'll be told if the content is still too large.
+
+### Changed
+- **`MergeStore` rewritten with indexed lookups.** Items are now stored
+  in `idIndex` / `itemIndex` / `fsPathIndex` maps, plus a running
+  per-workspace content-size counter. Duplicate detection, `hasFsPath`,
+  `itemsByFsPath`, and `addMany` are now O(1) / O(n) instead of
+  O(n) / O(n²) — noticeably faster when adding large folders.
+- **Preview helpers consolidated.** `isPreviewOpen`, `lockAndKeep`,
+  `ensurePreviewOpen`, `enforcePreviewSizeLimit`, and
+  `resetPreviewSizeWarning` now all live in `views/previewOpener.ts`.
+  `commands/openPreview.ts` only registers the command. This fixes a
+  subtle issue where the auto-open path (Add File / Add Folder /
+  Add Selection) bypassed the size-warning reset, which could leave the
+  preview silently closing on every subsequent edit.
+- **`FileSync` no longer imports from `commands/`.** The size guard is
+  imported from `views/previewOpener` instead, restoring the
+  `core → views` (never `core → commands`) dependency direction.
+
+### Notes
+- **The size guard only ever closes a preview that a live edit pushed
+  over the limit.** The first add of a large folder still opens the
+  preview normally — the guard only kicks in on subsequent edits.
+
+---
+
 ## [0.4.0] — 2026-09-19
 
 ### Added

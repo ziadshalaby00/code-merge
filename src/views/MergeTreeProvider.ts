@@ -9,7 +9,7 @@ const TOOLTIP_PREVIEW_CHARS = 400;
  * regardless of what the user's file paths or content contain.
  */
 function escapeMd(text: string): string {
-  return text.replace(/[\\`*_{}[\]()#+\-.!|>]/g, '\\$&');
+  return text.replace(/[\\`*_[\]]/g, '\\$&');
 }
 
 function tooltipFor(data: MergeItem): vscode.MarkdownString {
