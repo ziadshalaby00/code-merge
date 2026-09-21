@@ -1,3 +1,59 @@
+## [0.6.0] — 2026-09-21
+
+### Added
+- **Workspaces view** — a second sidebar view under the same Code Merge
+  activity bar container, listing every workspace folder that currently
+  has at least one tracked item. The active workspace is shown first
+  with a `· active` marker, followed by the rest in alphabetical order.
+- **Click a workspace to switch** — clicking a workspace in the
+  Workspaces view makes it the active one; both the Selected Items view
+  and the merged preview update immediately.
+- **Per-workspace clear** — a `🗑` button on each workspace item clears
+  only that workspace's tracked items, leaving the active workspace and
+  every other workspace untouched.
+- **`code-merge.switchWorkspace`** and **`code-merge.clearWorkspace`**
+  commands (available in the Command Palette and the Workspaces view
+  context menu).
+
+### Changed
+- **`MergeStore` gained three new helpers** — `getWorkspacesWithItems()`,
+  `countForWorkspace(uri)`, and `clearWorkspace(uri)` — and the existing
+  `clear()` now reuses `clearWorkspace()` internally.
+- **`package.json` now contributes two views** under the `codeMerge`
+  activity bar container: `codeMerge.items` ("Selected Items") and
+  `codeMerge.workspaces` ("Workspaces"). The Workspaces view is declared
+  after the items view, so it renders below it by default.
+- **`view/item/context` menu entries now match on `viewItem` context
+  values** (`mergeItem` and `mergeWorkspace`) so inline actions only
+  appear on the correct tree item type.
+
+### Fixed
+- **Items belonging to a removed workspace are now pruned
+  automatically.** When a folder is removed from a multi-root workspace,
+  `onDidChangeWorkspaceFolders` clears any tracked items that belonged
+  to it. Previously the Workspaces view kept showing the "ghost"
+  workspace, and clicking it set an active workspace that no longer
+  existed — the UI said "switched to …" while `openPreview` / `copyAll`
+  / `clearAll` immediately answered "no active workspace".
+- **Active workspace fallback is now more robust** — if the active
+  workspace was just removed and at least one folder remains, the first
+  remaining folder becomes active automatically.
+- **Removed a duplicate `registerTreeDataProvider('codeMerge.items', …)`
+  call** from `extension.ts` that was previously registered twice, which
+  could swallow the first registration depending on VS Code version.
+
+### Notes
+- **`switchWorkspace` is intentionally not in the right-click menu.**
+  Clicking the workspace item (or pressing Enter after focusing it)
+  already switches — adding a redundant context-menu entry only adds
+  noise.
+- **Removed workspaces don't come back with their items.** If you
+  remove a folder from a multi-root workspace and later add it back,
+  its previously-tracked items are gone (session-only state, as
+  documented for `0.2.0`).
+
+---
+
 ## [0.5.0] — 2026-09-20
 
 ### Added

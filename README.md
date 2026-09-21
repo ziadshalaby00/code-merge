@@ -44,6 +44,10 @@
 - **🔒 Workspace isolation** — each workspace folder gets its own item
   list; the preview follows the active workspace as you switch between
   multi-root folders.
+- **🗂️ Workspaces view** — a dedicated sidebar view below Selected Items
+  listing every workspace with tracked items. Click a workspace to make
+  it active, or hit the `🗑` button to clear only that workspace's
+  items — the active workspace and every other workspace stay untouched.
 - **⚙️ Configurable ignore rules** — extend the built-in lists via
   VS Code settings, a `.code-mergeignore` file (gitignore syntax), or
   by enabling `.gitignore` support. Ignore files are read from each
@@ -73,10 +77,31 @@ items. From there you can:
 - **Preview** (`$(open-preview)`) — opens the merged output as a
   read-only virtual document beside the current editor.
 - **Copy** (`$(copy)`) — copies the full merged output to the clipboard.
-- **Clear** (`$(clear-all)`) — removes every item for the current workspace.
+- **Clear** (`$(clear-all)`) — removes every item for the active
+  workspace.
 
 Clicking any item in the tree opens its source file. For selections,
 the file opens scrolled to and highlighting the recorded range.
+
+In a multi-root workspace, the separate **Workspaces** view (below
+Selected Items) lets you switch between workspaces and clear them
+individually — see **Switching workspaces** for details.
+
+### Switching workspaces (multi-root)
+
+Below the **Selected Items** view, the **Workspaces** view lists every
+workspace folder that currently has tracked items:
+
+- The **active workspace** is shown first, marked with `· active` and
+  an open-folder icon.
+- **Click a workspace** to switch to it — both the Selected Items view
+  and the merged preview update immediately.
+- **Hit the `🗑` button** on any workspace to clear its tracked items.
+  The active workspace and every other workspace stay untouched.
+
+A workspace disappears from this list automatically once it has no
+tracked items left. Removing a folder from a multi-root workspace also
+prunes its tracked items, so the view never shows a "ghost" workspace.
 
 ### Managing ignore rules
 

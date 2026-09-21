@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { MergeStore } from '../core/MergeStore';
 import { MergeItem, MergeRange } from '../core/types';
+import * as path from 'path';
 
 const TOOLTIP_PREVIEW_CHARS = 400;
 
@@ -103,6 +104,43 @@ export class MergeTreeItem extends vscode.TreeItem {
   }
 }
 
+export class WorkspaceTreeItem extends vscode.TreeItem {
+  constructor(
+    public readonly workspaceUri: vscode.Uri,
+    public readonly workspaceName: string,
+    public readonly itemCount: number,
+    public readonly isActive: boolean
+  ) {
+    super(
+      workspaceName,
+      vscode.TreeItemCollapsibleState.None
+    );
+
+    this.id = `workspace:${workspaceUri.toString()}`;
+    this.description = isActive
+      ? `${itemCount} item${itemCount === 1 ? '' : 's'} · active`
+      : `${itemCount} item${itemCount === 1 ? '' : 's'}`;
+    this.contextValue = 'mergeWorkspace';
+
+    this.iconPath = new vscode.ThemeIcon(
+      isActive ? 'root-folder-opened' : 'root-folder'
+    );
+
+    this.tooltip = new vscode.MarkdownString(
+      isActive
+        ? `**${workspaceName}** — currently active`
+        : `**${workspaceName}**\n\nClick to switch to this workspace.`
+    );
+
+    // Clicking the item swaps the active workspace.
+    this.command = {
+      command: 'code-merge.switchWorkspace',
+      title: 'Switch Workspace',
+      arguments: [this],
+    };
+  }
+}
+
 export class MergeTreeProvider
   implements vscode.TreeDataProvider<MergeTreeItem>, vscode.Disposable
 {
@@ -121,8 +159,6 @@ export class MergeTreeProvider
 
   getChildren(): MergeTreeItem[] {
     const sorted = [...this.store.all].sort((a, b) => {
-      // Selections before files is debatable; pick something stable:
-      // sort by relativePath first, then by start line.
       const pathCmp = a.relativePath.localeCompare(b.relativePath);
       if (pathCmp !== 0) {
         return pathCmp;
@@ -133,6 +169,52 @@ export class MergeTreeProvider
     });
 
     return sorted.map(item => new MergeTreeItem(item));
+  }
+
+  dispose(): void {
+    this.storeSub.dispose();
+    this.emitter.dispose();
+  }
+}
+
+export class WorkspacesTreeProvider
+  implements vscode.TreeDataProvider<WorkspaceTreeItem>, vscode.Disposable
+{
+  private emitter = new vscode.EventEmitter<WorkspaceTreeItem | undefined>();
+  readonly onDidChangeTreeData = this.emitter.event;
+
+  private storeSub: vscode.Disposable;
+
+  constructor(private store: MergeStore) {
+    this.storeSub = store.onDidChange(() => this.emitter.fire(undefined));
+  }
+
+  getTreeItem(el: WorkspaceTreeItem): vscode.TreeItem {
+    return el;
+  }
+
+  getChildren(): WorkspaceTreeItem[] {
+    const active = this.store.getActiveWorkspace();
+    const activeKey = active?.uri.toString();
+
+    const wsItems = this.store.getWorkspacesWithItems().map(uriStr => {
+      const uri = vscode.Uri.parse(uriStr);
+      const folder = vscode.workspace.workspaceFolders?.find(
+        f => f.uri.toString() === uriStr
+      );
+      const name = folder?.name ?? path.basename(uri.fsPath);
+      const count = this.store.countForWorkspace(uriStr);
+      return new WorkspaceTreeItem(uri, name, count, uriStr === activeKey);
+    });
+
+    wsItems.sort((a, b) => {
+      if (a.isActive !== b.isActive) {
+        return a.isActive ? -1 : 1;
+      }
+      return a.workspaceName.localeCompare(b.workspaceName);
+    });
+
+    return wsItems;
   }
 
   dispose(): void {

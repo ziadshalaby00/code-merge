@@ -75,6 +75,51 @@ export class MergeStore implements vscode.Disposable {
     return this.contentSize.get(workspaceUri.toString()) ?? 0;
   }
 
+  /**
+   * Returns the URI strings of every workspace that currently has at
+   * least one item in the store. Order is not guaranteed — the tree
+   * provider sorts them.
+   */
+  getWorkspacesWithItems(): string[] {
+    const set = new Set<string>();
+    for (const item of this.items) {
+      set.add(item.workspaceFolder);
+    }
+    return [...set];
+  }
+
+  /** Number of tracked items belonging to `workspaceUri`. */
+  countForWorkspace(workspaceUri: string): number {
+    let n = 0;
+    for (const item of this.items) {
+      if (item.workspaceFolder === workspaceUri) {
+        n++;
+      }
+    }
+    return n;
+  }
+
+  /**
+   * Clears every item belonging to `workspaceUri`, regardless of which
+   * workspace is currently active. Returns the number of items removed.
+   */
+  clearWorkspace(workspaceUri: vscode.Uri): number {
+    const key = workspaceUri.toString();
+    const before = this.items.length;
+    this.items = this.items.filter(i => {
+      if (i.workspaceFolder !== key) {
+        return true;
+      }
+      this.unindex(i);
+      return false;
+    });
+    const removed = before - this.items.length;
+    if (removed > 0) {
+      this.emitter.fire();
+    }
+    return removed;
+  }
+
   private keyOf(item: MergeItem): string {
     const start = item.range?.startLine ?? '';
     const end = item.range?.endLine ?? '';
@@ -291,17 +336,7 @@ export class MergeStore implements vscode.Disposable {
     if (!key) {
       return;
     }
-    const before = this.items.length;
-    this.items = this.items.filter(i => {
-      if (i.workspaceFolder !== key) {
-        return true;
-      }
-      this.unindex(i);
-      return false;
-    });
-    if (this.items.length !== before) {
-      this.emitter.fire();
-    }
+    this.clearWorkspace(vscode.Uri.parse(key));
   }
 
   dispose(): void {

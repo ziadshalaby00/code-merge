@@ -2,7 +2,7 @@
   "name": "code-merge",
   "displayName": "Code Merge",
   "description": "Select files, folders, or code snippets and merge them into a live markdown preview with a project tree, per-file headers, item counts, and configurable ignore rules.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "icon": "resources/icon.png",
   "publisher": "ziadshalaby00",
   "license": "MIT",
@@ -85,6 +85,16 @@
         "command": "code-merge.ignorePath",
         "title": "Code Merge: Ignore This Path",
         "icon": "$(circle-slash)"
+      },
+      {
+        "command": "code-merge.switchWorkspace",
+        "title": "Code Merge: Switch Workspace",
+        "icon": "$(folder)"
+      },
+      {
+        "command": "code-merge.clearWorkspace",
+        "title": "Code Merge: Clear Workspace",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -115,8 +125,18 @@
       "view/item/context": [
         {
           "command": "code-merge.deleteItem",
-          "when": "view == codeMerge.items",
+          "when": "view == codeMerge.items && viewItem == mergeItem",
           "group": "inline"
+        },
+        {
+          "command": "code-merge.clearWorkspace",
+          "when": "view == codeMerge.workspaces && viewItem == mergeWorkspace",
+          "group": "inline"
+        },
+        {
+          "command": "code-merge.switchWorkspace",
+          "when": "view == codeMerge.workspaces && viewItem == mergeWorkspace",
+          "group": "navigation@1"
         }
       ],
       "view/title": [
@@ -205,6 +225,12 @@
           "name": "Selected Items",
           "icon": "$(list-tree)",
           "contextualTitle": "Code Merge"
+        },
+        {
+          "id": "codeMerge.workspaces",
+          "name": "Workspaces",
+          "icon": "$(root-folder)",
+          "contextualTitle": "Code Merge"
         }
       ]
     },
@@ -273,7 +299,7 @@
           "default": 5000000,
           "minimum": 50000,
           "description": "Maximum total size (characters) of the merged output. If live edits push the merged content past this limit, the preview is closed automatically to avoid slowing down the editor. It can still be reopened manually."
-        } 
+        }
       }
     }
   },
