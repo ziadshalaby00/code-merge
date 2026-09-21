@@ -11,14 +11,16 @@
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/ziadshalaby00.code-merge?label=VS%20Code%20Marketplace&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=ziadshalaby00.code-merge)
 [![Open VSX](https://img.shields.io/open-vsx/v/ziadshalaby00/code-merge?label=Open%20VSX)](https://open-vsx.org/extension/ziadshalaby00/code-merge)
 
-<p>
-  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/1.png" width="32%">
-  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/2.png" width="32%">
-  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/3.png" width="32%">
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/1.png" width="85%">
 </p>
-<p>
-  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/4.png" width="48.3%" alt="Preview merged output">
-  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/5.png" width="48.3%">
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/2.png" width="48%">
+  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/3.png" width="48%">
+</p>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/4.png" width="48%">
+  <img src="https://raw.githubusercontent.com/ziadshalaby00/code-merge/main/images/5.png" width="48%">
 </p>
 
 ---
