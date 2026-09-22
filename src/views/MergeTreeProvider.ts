@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { MergeStore } from '../core/MergeStore';
-import { MergeItem, MergeRange } from '../core/types';
+import { MergeItem, MergeRange, StoreChange } from '../core/types';
 import * as path from 'path';
 
 const TOOLTIP_PREVIEW_CHARS = 400;
@@ -149,8 +149,81 @@ export class MergeTreeProvider
 
   private storeSub: vscode.Disposable;
 
+  /**
+   * Cached TreeItem per item id. VS Code's tree diffing uses
+   * `TreeItem.id` to match items across refreshes, so returning the
+   * same object for unchanged items lets it skip rebuilding their
+   * tooltip / label / command. Without this cache, every store event
+   * would build a fresh `MergeTreeItem` for every tracked item, which
+   * is expensive for the tooltip MarkdownString alone.
+   *
+   * Entries are invalidated entry-by-entry, only for the ids whose
+   * rendered representation actually changed:
+   *   - content-changed → tooltip embeds a content slice
+   *   - ranges-changed  → label and tooltip embed the line range
+   *   - items-removed   → element is gone entirely
+   *   - items-cleared   → whole workspace wiped
+   *
+   * Changes in a non-active workspace invalidate the cache but do not
+   * fire — the tree isn't currently showing those items, and when the
+   * user switches to that workspace the cache will be clean.
+   */
+  private itemCache = new Map<string, MergeTreeItem>();
+
   constructor(private store: MergeStore) {
-    this.storeSub = store.onDidChange(() => this.emitter.fire(undefined));
+    this.storeSub = store.onDidChange(change => this.onStoreChange(change));
+  }
+
+  private onStoreChange(change: StoreChange): void {
+    const activeKey = this.store.getActiveWorkspace()?.uri.toString();
+    const affectsActive =
+      change.kind === 'active-workspace-changed' ||
+      change.kind === 'items-cleared' ||
+      change.workspaceKey === activeKey;
+
+    switch (change.kind) {
+      case 'active-workspace-changed':
+        // Visible subset changes; cached TreeItems remain valid for
+        // the items that are visible in the new workspace too.
+        this.emitter.fire(undefined);
+        return;
+
+      case 'items-cleared':
+        // The whole workspace was wiped. We don't track per-workspace
+        // caches, so drop everything — items from other workspaces
+        // will be lazily rebuilt on the next getChildren() call.
+        this.itemCache.clear();
+        if (change.workspaceKey === activeKey) {
+          this.emitter.fire(undefined);
+        }
+        return;
+
+      case 'items-added':
+        // New items have new ids — nothing to invalidate in the cache.
+        if (affectsActive) {
+          this.emitter.fire(undefined);
+        }
+        return;
+
+      case 'items-removed':
+        for (const id of change.ids) {
+          this.itemCache.delete(id);
+        }
+        if (affectsActive) {
+          this.emitter.fire(undefined);
+        }
+        return;
+
+      case 'content-changed':
+      case 'ranges-changed':
+        for (const id of change.ids) {
+          this.itemCache.delete(id);
+        }
+        if (affectsActive) {
+          this.emitter.fire(undefined);
+        }
+        return;
+    }
   }
 
   getTreeItem(el: MergeTreeItem): vscode.TreeItem {
@@ -168,12 +241,21 @@ export class MergeTreeProvider
       return aStart - bStart;
     });
 
-    return sorted.map(item => new MergeTreeItem(item));
+    return sorted.map(item => {
+      const cached = this.itemCache.get(item.id);
+      if (cached) {
+        return cached;
+      }
+      const fresh = new MergeTreeItem(item);
+      this.itemCache.set(item.id, fresh);
+      return fresh;
+    });
   }
 
   dispose(): void {
     this.storeSub.dispose();
     this.emitter.dispose();
+    this.itemCache.clear();
   }
 }
 
@@ -186,7 +268,21 @@ export class WorkspacesTreeProvider
   private storeSub: vscode.Disposable;
 
   constructor(private store: MergeStore) {
-    this.storeSub = store.onDidChange(() => this.emitter.fire(undefined));
+    this.storeSub = store.onDidChange(change => this.onStoreChange(change));
+  }
+
+  private onStoreChange(change: StoreChange): void {
+    switch (change.kind) {
+      case 'content-changed':
+      case 'ranges-changed':
+        // Neither the per-workspace item counts nor the "active"
+        // marker change on a content/range edit, so this view has
+        // nothing to re-render. Skip the refresh entirely.
+        return;
+      default:
+        this.emitter.fire(undefined);
+        return;
+    }
   }
 
   getTreeItem(el: WorkspaceTreeItem): vscode.TreeItem {

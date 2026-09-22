@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { MergeItem, MergeRange } from './types';
+import { MergeItem, MergeRange, StoreChange } from './types';
 
 /**
  * In-memory store for merge items.
@@ -24,7 +24,7 @@ export class MergeStore implements vscode.Disposable {
    */
   private contentSize = new Map<string, number>();
 
-  private emitter = new vscode.EventEmitter<void>();
+  private emitter = new vscode.EventEmitter<StoreChange>();
   readonly onDidChange = this.emitter.event;
   private activeWorkspaceUri?: string;
 
@@ -35,11 +35,9 @@ export class MergeStore implements vscode.Disposable {
 
   public setActiveWorkspace(uri: vscode.Uri): void {
     const next = uri.toString();
-    if (this.activeWorkspaceUri === next) {
-      return;
-    }
+    if (this.activeWorkspaceUri === next) { return; }
     this.activeWorkspaceUri = next;
-    this.emitter.fire();
+    this.emitter.fire({ kind: 'active-workspace-changed', workspaceKey: next });
   }
 
   public getActiveWorkspace(): vscode.WorkspaceFolder | undefined {
@@ -106,16 +104,16 @@ export class MergeStore implements vscode.Disposable {
   clearWorkspace(workspaceUri: vscode.Uri): number {
     const key = workspaceUri.toString();
     const before = this.items.length;
+
     this.items = this.items.filter(i => {
-      if (i.workspaceFolder !== key) {
-        return true;
-      }
+      if (i.workspaceFolder !== key) { return true; }
       this.unindex(i);
       return false;
     });
+
     const removed = before - this.items.length;
     if (removed > 0) {
-      this.emitter.fire();
+      this.emitter.fire({ kind: 'items-cleared', workspaceKey: key });
     }
     return removed;
   }
@@ -177,20 +175,21 @@ export class MergeStore implements vscode.Disposable {
   }
 
   add(item: MergeItem): boolean {
-    if (!item.workspaceFolder) {
-      return false;
-    }
-    if (this.isDuplicate(item)) {
-      return false;
-    }
+    if (!item.workspaceFolder) { return false; }
+    if (this.isDuplicate(item)) { return false; }
     this.insert(item);
-    this.emitter.fire();
+    this.emitter.fire({
+      kind: 'items-added',
+      workspaceKey: item.workspaceFolder,
+      ids: [item.id],
+    });
     return true;
   }
 
   addMany(newItems: MergeItem[]): { added: number; skipped: number } {
     let added = 0;
     let skipped = 0;
+    const byWs = new Map<string, string[]>();
 
     for (const item of newItems) {
       if (!item.workspaceFolder || this.isDuplicate(item)) {
@@ -198,11 +197,14 @@ export class MergeStore implements vscode.Disposable {
         continue;
       }
       this.insert(item);
+      const bucket = byWs.get(item.workspaceFolder);
+      if (bucket) { bucket.push(item.id); }
+      else { byWs.set(item.workspaceFolder, [item.id]); }
       added++;
     }
 
-    if (added > 0) {
-      this.emitter.fire();
+    for (const [workspaceKey, ids] of byWs) {
+      this.emitter.fire({ kind: 'items-added', workspaceKey, ids });
     }
 
     return { added, skipped };
@@ -210,15 +212,12 @@ export class MergeStore implements vscode.Disposable {
 
   remove(id: string): void {
     const item = this.idIndex.get(id);
-    if (!item) {
-      return;
-    }
+    if (!item) { return; }
     const idx = this.items.indexOf(item);
-    if (idx !== -1) {
-      this.items.splice(idx, 1);
-    }
+    if (idx !== -1) { this.items.splice(idx, 1); }
+    const workspaceKey = item.workspaceFolder;
     this.unindex(item);
-    this.emitter.fire();
+    this.emitter.fire({ kind: 'items-removed', workspaceKey, ids: [id] });
   }
 
   itemsByFsPath(fsPath: string): MergeItem[] {
@@ -235,39 +234,40 @@ export class MergeStore implements vscode.Disposable {
    * counter is adjusted by exactly the character delta of each change,
    * so there's no need to inspect what was added/removed.
    */
-  updateContents(
-    updates: readonly { id: string; content: string }[]
-  ): void {
-    let changed = false;
+  updateContents(updates: readonly { id: string; content: string }[]): void {
+    const byWs = new Map<string, string[]>();
+
     for (const { id, content } of updates) {
       const item = this.idIndex.get(id);
-      if (!item || item.content === content) {
-        continue;
-      }
+      if (!item || item.content === content) { continue; }
       this.addSize(item.workspaceFolder, content.length - item.content.length);
       item.content = content;
-      changed = true;
+      const bucket = byWs.get(item.workspaceFolder);
+      if (bucket) { bucket.push(id); }
+      else { byWs.set(item.workspaceFolder, [id]); }
     }
-    if (changed) {
-      this.emitter.fire();
+
+    for (const [workspaceKey, ids] of byWs) {
+      this.emitter.fire({ kind: 'content-changed', workspaceKey, ids });
     }
   }
 
   updateRanges(
     updates: readonly { id: string; range: MergeRange | null }[]
   ): void {
-    let changed = false;
+    const changedByWs = new Map<string, string[]>();
+    const removedByWs = new Map<string, string[]>();
     const toRemove: MergeItem[] = [];
 
     for (const { id, range } of updates) {
       const item = this.idIndex.get(id);
-      if (!item) {
-        continue;
-      }
+      if (!item) { continue; }
 
       if (range === null) {
         toRemove.push(item);
-        changed = true;
+        const bucket = removedByWs.get(item.workspaceFolder);
+        if (bucket) { bucket.push(id); }
+        else { removedByWs.set(item.workspaceFolder, [id]); }
         continue;
       }
 
@@ -278,20 +278,23 @@ export class MergeStore implements vscode.Disposable {
         this.itemIndex.delete(this.keyOf(item));
         item.range = range;
         this.itemIndex.set(this.keyOf(item), item);
-        changed = true;
+        const bucket = changedByWs.get(item.workspaceFolder);
+        if (bucket) { bucket.push(id); }
+        else { changedByWs.set(item.workspaceFolder, [id]); }
       }
     }
 
     if (toRemove.length) {
-      const toRemoveIds = new Set(toRemove.map(i => i.id));
-      this.items = this.items.filter(i => !toRemoveIds.has(i.id));
-      for (const item of toRemove) {
-        this.unindex(item);
-      }
+      const ids = new Set(toRemove.map(i => i.id));
+      this.items = this.items.filter(i => !ids.has(i.id));
+      for (const item of toRemove) { this.unindex(item); }
     }
 
-    if (changed) {
-      this.emitter.fire();
+    for (const [workspaceKey, ids] of changedByWs) {
+      this.emitter.fire({ kind: 'ranges-changed', workspaceKey, ids });
+    }
+    for (const [workspaceKey, ids] of removedByWs) {
+      this.emitter.fire({ kind: 'items-removed', workspaceKey, ids });
     }
   }
 
@@ -300,34 +303,35 @@ export class MergeStore implements vscode.Disposable {
     shouldRemove: (item: MergeItem) => boolean
   ): number {
     const key = workspaceUri.toString();
-    const before = this.items.length;
+    const removedIds: string[] = [];
+
     this.items = this.items.filter(i => {
-      if (i.workspaceFolder !== key || !shouldRemove(i)) {
-        return true;
-      }
+      if (i.workspaceFolder !== key || !shouldRemove(i)) { return true; }
+      removedIds.push(i.id);
       this.unindex(i);
       return false;
     });
-    const removed = before - this.items.length;
 
-    if (removed > 0) {
-      this.emitter.fire();
+    if (removedIds.length) {
+      this.emitter.fire({ kind: 'items-removed', workspaceKey: key, ids: removedIds });
     }
-
-    return removed;
+    return removedIds.length;
   }
 
   removeByFsPath(fsPath: string): void {
-    const before = this.items.length;
+    const byWs = new Map<string, string[]>();
+
     this.items = this.items.filter(i => {
-      if (i.fsPath !== fsPath) {
-        return true;
-      }
+      if (i.fsPath !== fsPath) { return true; }
+      const bucket = byWs.get(i.workspaceFolder);
+      if (bucket) { bucket.push(i.id); }
+      else { byWs.set(i.workspaceFolder, [i.id]); }
       this.unindex(i);
       return false;
     });
-    if (this.items.length !== before) {
-      this.emitter.fire();
+
+    for (const [workspaceKey, ids] of byWs) {
+      this.emitter.fire({ kind: 'items-removed', workspaceKey, ids });
     }
   }
 

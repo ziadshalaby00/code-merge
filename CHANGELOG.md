@@ -1,3 +1,70 @@
+## [0.7.0] — 2026-09-22
+
+### Changed
+- **Store events are now typed and filtered.** `MergeStore.onDidChange`
+  emits a discriminated `StoreChange` payload — `items-added`,
+  `items-removed`, `items-cleared`, `content-changed`, `ranges-changed`,
+  or `active-workspace-changed` — instead of a bare `void`. Each
+  subscriber now reacts only to the events that actually affect it:
+
+  - **Selected Items view** refreshes only for changes in the active
+    workspace, and reuses cached `MergeTreeItem` instances for items
+    whose content and range didn't change. A keystroke in one tracked
+    file no longer rebuilds the tooltip `MarkdownString` for every
+    other item in the tree.
+  - **Workspaces view** ignores content and range edits entirely —
+    neither the per-workspace item counts nor the `· active` marker
+    change on those.
+  - **Merged preview** ignores edits in non-active workspaces, so
+    editing one folder no longer re-renders the preview while another
+    folder is active.
+  - **`FileSync`** reconciles file watchers only when items are added,
+    removed, or cleared — content and range edits no longer trigger an
+    O(N) walk over every tracked fsPath on each keystroke.
+
+  Net effect: typing latency in a project with hundreds of tracked
+  items now scales with the size of the edit, not with the size of the
+  store.
+
+- **`FileSync` micro-optimizations.** `applyContent` skips the
+  CRLF/CR normalization pass when the raw content contains no `\r`,
+  and skips the full `split('\n')` when no tracked item at that path
+  is a selection. `adjustSelectionRanges` returns early for intra-line
+  edits that can't shift any line range. Together these remove several
+  full-string passes per keystroke on large files.
+
+- **Preview size guard default lowered from 5,000,000 to 1,000,000
+  characters.** The preview now closes sooner when live edits push the
+  merged output past the limit, which keeps the editor responsive on
+  larger merges. The value remains configurable via
+  `code-merge.maxPreviewSizeChars`.
+
+### Fixed
+- **`FileSync` now handles file creation at a tracked path.** An
+  `onDidCreate` handler was added to each per-file watcher, so files
+  that are replaced atomically (write-to-temp + rename) or whose
+  delete event was missed are re-read into the store.
+
+- **Pending edit debounce timers are cancelled when an item is
+  removed.** Previously the timer callback would fire and bail on
+  `hasFsPath()`; now the timer is cleared eagerly so the map stays
+  clean and the slot is released immediately.
+
+### Notes
+- No user-facing behavior changed apart from the size-guard default.
+  The public API of `MergeStore` is unchanged — only the payload of
+  `onDidChange` became a typed union.
+
+- **Users working with large merges may want to revisit
+  `code-merge.maxPreviewSizeChars`.** The new default (1M characters)
+  closes the preview sooner than before. If you routinely merge more
+  than that and want the preview to stay open longer, raise the value
+  in Settings — but be aware that the editor re-renders the preview on
+  every relevant edit. See the README's **Performance tips** section
+  for how to keep merges fast.
+
+---
+
 ## [0.6.0] — 2026-09-21
 
 ### Added

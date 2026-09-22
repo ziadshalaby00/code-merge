@@ -1,7 +1,10 @@
+// ────────────────────────────────────────────────────────────
+// src/core/FileSync.ts (ts) — file
+// ────────────────────────────────────────────────────────────
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { MergeStore } from './MergeStore';
-import { MergeItem, MergeRange } from './types';
+import { MergeItem, MergeRange, StoreChange } from './types';
 import { IgnoreRules } from './ignoreRules';
 import { enforcePreviewSizeLimit } from '../views/previewOpener';
 
@@ -18,10 +21,33 @@ export class FileSync implements vscode.Disposable {
   ) {
     this.disposables.push(
       vscode.workspace.onDidChangeTextDocument(e => this.onEdit(e)),
-      store.onDidChange(() => this.reconcileWatchers())
+      store.onDidChange(change => this.onStoreChange(change))
     );
 
     this.reconcileWatchers();
+  }
+
+  /**
+   * The watcher set is keyed by fsPath, and fsPaths only change when
+   * items are added / removed / cleared. Content and range edits, and
+   * active-workspace switches, leave the set untouched — so reconciling
+   * on those events would do an O(N) diff for nothing. In a project
+   * with hundreds of tracked items, that's the difference between a
+   * keystroke costing a small local update and costing a full walk of
+   * the item list.
+   */
+  private onStoreChange(change: StoreChange): void {
+    switch (change.kind) {
+      case 'items-added':
+      case 'items-removed':
+      case 'items-cleared':
+        this.reconcileWatchers();
+        return;
+      default:
+        // content-changed, ranges-changed, active-workspace-changed:
+        // fsPaths are unchanged, so no watcher needs adding or removing.
+        return;
+    }
   }
 
   private reconcileWatchers(): void {
@@ -38,6 +64,12 @@ export class FileSync implements vscode.Disposable {
 
       watcher.onDidChange(uri => void this.syncFromDisk(uri));
       watcher.onDidDelete(uri => this.removeByPath(uri));
+      // Creation at a tracked fsPath: if the item is still in the store
+      // (e.g. the delete event was missed, or the file was replaced
+      // atomically), re-read it. If the item was already removed by
+      // onDidDelete, syncFromDisk bails out on hasFsPath() and nothing
+      // happens — safe either way.
+      watcher.onDidCreate(uri => void this.syncFromDisk(uri));
 
       this.watchers.set(fsPath, watcher);
     }
@@ -134,6 +166,23 @@ export class FileSync implements vscode.Disposable {
       return;
     }
 
+    // Fast path: a change only affects selection ranges if it adds or
+    // removes line breaks (new text contains `\n`, or the replaced span
+    // spans multiple lines). Intra-line edits always produce a delta of
+    // zero, so `adjustRange` would return the original range unchanged
+    // for every selection — the whole N×M walk would be wasted work.
+    //
+    // This is the common case during typing: plain keystrokes, intra-line
+    // autocompletion, format-on-type adjustments within a single line.
+    // Pastes, Enter presses, and multi-line edits still take the slow
+    // path below and update ranges correctly.
+    const affectsLines = changes.some(
+      c => c.text.indexOf('\n') !== -1 || c.range.end.line !== c.range.start.line
+    );
+    if (!affectsLines) {
+      return;
+    }
+
     const updates: { id: string; range: MergeRange | null }[] = [];
     for (const item of selections) {
       let range: MergeRange | null = item.range!;
@@ -188,12 +237,28 @@ export class FileSync implements vscode.Disposable {
       return;
     }
 
-    const normalized = raw.replace(/\r\n?/g, '\n');
-    const lines = normalized.split('\n');
+    // Normalize CRLF/CR to LF, but only if there's actually a `\r` to
+    // replace. `indexOf` uses SIMD under the hood in V8 and is much
+    // faster than a regex scan on large strings, and skipping the
+    // replace entirely avoids a potential full-string allocation when
+    // the content is already LF-only — which is the common case in
+    // VS Code, since `files.eol` defaults to `\n`.
+    const normalized =
+      raw.indexOf('\r') === -1 ? raw : raw.replace(/\r\n?/g, '\n');
+
+    // Only split into lines when at least one item actually needs a
+    // slice. `lines.join('\n')` is identical to `normalized`, so for
+    // file-only items we can skip the split entirely — a meaningful
+    // saving on large files where a single tracked selection would
+    // otherwise force a full split + rejoin on every keystroke.
+    const needsSlicing = items.some(
+      i => i.kind === 'selection' && !!i.range
+    );
+    const lines = needsSlicing ? normalized.split('\n') : undefined;
 
     const updates = items.map(item => ({
       id: item.id,
-      content: sliceForItem(item, lines),
+      content: lines ? sliceForItem(item, lines) : normalized,
     }));
 
     this.store.updateContents(updates);
@@ -208,6 +273,15 @@ export class FileSync implements vscode.Disposable {
   }
 
   private removeByPath(uri: vscode.Uri): void {
+    // If a debounced edit is still pending for this path, drop it now.
+    // The timer callback would bail on hasFsPath() anyway, but clearing
+    // it here keeps the map tidy and releases the timer slot early.
+    const timer = this.editTimers.get(uri.fsPath);
+    if (timer) {
+      clearTimeout(timer);
+      this.editTimers.delete(uri.fsPath);
+    }
+
     this.store.removeByFsPath(uri.fsPath);
   }
 

@@ -2,7 +2,7 @@
   "name": "code-merge",
   "displayName": "Code Merge",
   "description": "Select files, folders, or code snippets and merge them into a live markdown preview with a project tree, per-file headers, item counts, and configurable ignore rules.",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "icon": "resources/icon.png",
   "publisher": "ziadshalaby00",
   "license": "MIT",
@@ -296,9 +296,9 @@
         },
         "code-merge.maxPreviewSizeChars": {
           "type": "number",
-          "default": 5000000,
+          "default": 1000000,
           "minimum": 50000,
-          "description": "Maximum total size (characters) of the merged output. If live edits push the merged content past this limit, the preview is closed automatically to avoid slowing down the editor. It can still be reopened manually."
+          "description": "Maximum total size (characters) of the merged output. If live edits push the merged content past this limit, the preview is closed automatically to keep the editor responsive. Reopen it manually (the warning won't repeat until you do), or use \"Copy Merged Content\" instead."
         }
       }
     }

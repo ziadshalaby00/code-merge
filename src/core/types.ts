@@ -51,3 +51,25 @@ export interface MergeItem {
   /** Timestamp (ms) when the item was added — used for stable sorting. */
   addedAt: number;
 }
+
+/**
+ * Describes what just changed in the store.
+ *
+ * Subscribers use this to decide whether they need to react at all —
+ * e.g. the Workspaces view ignores content edits (counts don't change),
+ * and the preview ignores edits in non-active workspaces.
+ *
+ * Invariant: every item-scoped change carries the owning workspace key
+ * and the affected item ids, so subscribers can filter without touching
+ * the store.
+ */
+export type StoreChange =
+  | { kind: 'items-added'; workspaceKey: string; ids: readonly string[] }
+  | { kind: 'items-removed'; workspaceKey: string; ids: readonly string[] }
+  | { kind: 'items-cleared'; workspaceKey: string }
+  | { kind: 'content-changed'; workspaceKey: string; ids: readonly string[] }
+  | { kind: 'ranges-changed'; workspaceKey: string; ids: readonly string[] }
+  | {
+      kind: 'active-workspace-changed';
+      workspaceKey: string | undefined;
+    };

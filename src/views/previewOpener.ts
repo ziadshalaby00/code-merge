@@ -49,7 +49,7 @@ const warnedWorkspaces = new Set<string>();
 function getMaxPreviewSizeChars(): number {
   return vscode.workspace
     .getConfiguration('code-merge')
-    .get<number>('maxPreviewSizeChars', 5_000_000);
+    .get<number>('maxPreviewSizeChars', 1_000_000);
 }
 
 /** Call when the preview is (re)opened, to allow a fresh warning later. */

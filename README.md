@@ -194,12 +194,68 @@ All shortcuts can be rebound from **Keyboard Shortcuts** (`Ctrl+K Ctrl+S`).
 | `code-merge.ignore.useGitignore` | `boolean` | `false` | Also honor the workspace `.gitignore` file. |
 | `code-merge.maxFileSizeMB` | `number` | `5` | Maximum size (in MB) for a file or selection to be merged. |
 | `code-merge.autoOpenPreview` | `boolean` | `true` | Automatically open the merged preview when items are added, if it isn't already open. |
-| `code-merge.maxPreviewSizeChars` | `number` | `5000000` | Maximum total size (characters) of the merged output. If live edits push the content past this limit, the preview closes automatically to keep the editor responsive. It can be reopened manually. |
+| `code-merge.maxPreviewSizeChars` | `number` | `1000000` | Maximum total size (characters) of the merged output. If live edits push the content past this limit, the preview closes automatically to keep the editor responsive. It can be reopened manually. |
 
 Built-in ignore rules still cover common directories, extensions,
 filenames, symlinks, and the configured size cap.
 
 ---
+
+## ⚡ Performance tips
+
+Code Merge is designed to stay responsive even on large projects, but
+a few habits keep it snappy in the tens-of-thousands-of-lines range.
+
+### Keep the merged output under the preview limit
+
+The `code-merge.maxPreviewSizeChars` guard (default **1,000,000
+characters**) closes the preview automatically when live edits push
+the merged content past the limit — this is what protects your editor
+from a runaway re-render. If you routinely hit this limit:
+
+- **Track selections instead of whole files.** `Add Selection` on the
+  function or class you actually need is dramatically cheaper than
+  `Add File` on a 3,000-line source file, and it's usually what you
+  want to feed to an LLM anyway.
+- **Trim your tracked list.** Remove entries you no longer need. Every
+  item participates in the merged output and the project tree.
+- **Split the work.** If you're feeding context to an LLM, merge one
+  module at a time and use `Copy Merged Content` — you don't have to
+  keep the preview open.
+
+### Watch out for very large files
+
+The `code-merge.maxFileSizeMB` setting (default **5 MB**) skips
+individual files that are too big, but a 4 MB file still contributes
+its full content to the preview. If you know a file is generated or
+vendored, prefer:
+
+- Adding it to `.code-mergeignore` (or your project's `.gitignore`
+  with `code-merge.ignore.useGitignore` enabled), or
+- Using `Code Merge: Ignore This Path` from the Explorer's right-click
+  menu.
+
+### Prefer folder-level add with a good ignore list
+
+`Add Folder` walks the tree once and applies your ignore rules — this
+is much faster than adding files one by one, and it respects
+`node_modules`, `.git`, `dist`, lockfiles, binaries, and anything you
+add to `.code-mergeignore`. A well-maintained ignore file is the
+single biggest performance lever in a large repo.
+
+### Closing the preview is not the same as clearing the list
+
+If the preview is closed but items are still tracked, edits in those
+files still trigger live-sync work in the background. If you're not
+actively using a merge, use **Clear All** (or **Clear Workspace** in
+the Workspaces view) rather than just closing the tab.
+
+### When the preview gets slow, copy instead
+
+For a large merge you only need once, use **Copy Merged Content**
+(`Ctrl+Alt+C` / `Cmd+Alt+C`) instead of keeping the preview tab open.
+The copy is rendered once; the preview re-renders on every relevant
+edit.
 
 ## 📋 Requirements
 
