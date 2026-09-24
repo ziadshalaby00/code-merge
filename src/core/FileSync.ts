@@ -1,6 +1,3 @@
-// ────────────────────────────────────────────────────────────
-// src/core/FileSync.ts (ts) — file
-// ────────────────────────────────────────────────────────────
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { MergeStore } from './MergeStore';

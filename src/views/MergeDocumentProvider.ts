@@ -1,6 +1,3 @@
-// ────────────────────────────────────────────────────────────
-// src/views/MergeDocumentProvider.ts (ts) — file
-// ────────────────────────────────────────────────────────────
 import * as vscode from 'vscode';
 import { MergeStore } from '../core/MergeStore';
 import { StoreChange } from '../core/types';

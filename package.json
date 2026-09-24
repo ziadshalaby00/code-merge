@@ -2,7 +2,7 @@
   "name": "code-merge",
   "displayName": "Code Merge",
   "description": "Select files, folders, or code snippets and merge them into a live markdown preview with a project tree, per-file headers, item counts, and configurable ignore rules.",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "icon": "resources/icon.png",
   "publisher": "ziadshalaby00",
   "license": "MIT",
@@ -18,8 +18,7 @@
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Other",
-    "Formatters"
+    "Other"
   ],
   "keywords": [
     "merge",
@@ -115,6 +114,14 @@
           "group": "navigation@10"
         }
       ],
+      "commandPalette": [
+        { "command": "code-merge.addFile", "when": "false" },
+        { "command": "code-merge.addFolder", "when": "false" },
+        { "command": "code-merge.deleteItem", "when": "false" },
+        { "command": "code-merge.ignorePath", "when": "false" },
+        { "command": "code-merge.switchWorkspace", "when": "false" },
+        { "command": "code-merge.clearWorkspace", "when": "false" }
+      ],
       "editor/context": [
         {
           "command": "code-merge.addSelection",
@@ -132,11 +139,6 @@
           "command": "code-merge.clearWorkspace",
           "when": "view == codeMerge.workspaces && viewItem == mergeWorkspace",
           "group": "inline"
-        },
-        {
-          "command": "code-merge.switchWorkspace",
-          "when": "view == codeMerge.workspaces && viewItem == mergeWorkspace",
-          "group": "navigation@1"
         }
       ],
       "view/title": [

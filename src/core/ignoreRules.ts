@@ -70,7 +70,63 @@ const DEFAULT_IGNORED_EXTENSIONS = new Set([
   'db', 'sqlite', 'sqlite3',
   // logs
   'log',
+  // certificates & private keys — never useful in a merged code context,
+  // and leaking one into an LLM prompt is a security incident.
+  'pem', 'key', 'p12', 'pfx', 'crt', 'cer', 'der', 'jks', 'keystore',
 ]);
+
+/**
+ * Exact filenames that commonly hold credentials but don't contain a
+ * secret-related keyword (so `SENSITIVE_FILENAME_RE` won't catch
+ * them). All lowercase — matched case-insensitively.
+ */
+const SENSITIVE_EXACT_FILENAMES = new Set([
+  // No-extension credential files.
+  '.netrc', '_netrc', '.htpasswd', '.npmrc', '.pypirc',
+  // SSH private keys (no extension by convention).
+  'id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519',
+  // Cloud provider service-account credentials.
+  'service-account.json',
+]);
+
+/**
+ * File extensions that can plausibly hold configuration *values*.
+ * The secret-keyword filename check is restricted to these — a
+ * source file like `password-validator.ts`, `secret_loader.py`, or
+ * `token_manager.go` is code, not a value container, and skipping it
+ * would silently hide a real file from the merge.
+ *
+ * The empty string is included so extension-less credential files
+ * (`credentials`, `id_rsa`) are still matched by the keyword pass.
+ */
+const CONFIG_FILE_EXTENSIONS = new Set([
+  '',            // no extension: `credentials`, `id_rsa`
+  'json', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'config',
+  'properties', 'env', 'txt', 'xml', 'csv', 'tsv',
+]);
+
+/**
+ * Matches filenames containing a secret-related word as a whole
+ * segment (delimited by `.`, `_`, `-`, or string boundaries).
+ *
+ * Word-segment matching — rather than a plain substring check — is
+ * deliberate: it catches `my-secret.yaml`, `api_token.json`, and
+ * `credentials.json` while leaving source files like
+ * `secretManager.ts` and `tokenizer.py` alone.
+ *
+ * This regex is only ever tested against filenames whose extension is
+ * in `CONFIG_FILE_EXTENSIONS` — see `shouldSkipFile`. Without that
+ * gate, snake_case and kebab-case source files
+ * (`password_validator.py`, `token_manager.go`) would match and be
+ * silently dropped from folder scans.
+ *
+ * The trailing separator is limited to `[._]` (no `-`) on purpose: a
+ * hyphen after the keyword almost always means it's part of a
+ * compound word — `password-validator`, `secret-manager` — while `.`
+ * and `_` separate independent words or the extension from the name.
+ */
+const SENSITIVE_FILENAME_RE =
+  /(^|[._-])(secret|credential|password|passwd|token|apikey|api[._-]key)s?([._]|$)/i;
 
 /**
  * Exact filenames that are always skipped, regardless of extension.
@@ -209,7 +265,22 @@ export class IgnoreRules {
       return true;
     }
 
+    // Credentials & secrets — checked before extension rules so the log
+    // reason is specific ("looks like a secret") rather than generic
+    // (".json was skipped").
+    const nameLower = name.toLowerCase();
+    if (SENSITIVE_EXACT_FILENAMES.has(nameLower)) {
+      this.log(`skip file "${relativePath}" (sensitive filename)`);
+      return true;
+    }
+
     const lower = ext.toLowerCase();
+
+    if (CONFIG_FILE_EXTENSIONS.has(lower) && SENSITIVE_FILENAME_RE.test(name)) {
+      this.log(`skip file "${relativePath}" (filename looks like a secret)`);
+      return true;
+    }
+
     if (DEFAULT_IGNORED_EXTENSIONS.has(lower)) {
       this.log(`skip file "${relativePath}" (built-in extension .${lower})`);
       return true;

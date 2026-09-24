@@ -1,3 +1,90 @@
+## [0.8.0] — 2026-09-24
+
+### Added
+- **Sensitive-file defaults.** Folder scans now skip files that
+  commonly hold credentials but weren't covered by the existing
+  built-in lists:
+  - **Extensions:** `pem`, `key`, `p12`, `pfx`, `crt`, `cer`, `der`,
+    `jks`, `keystore`.
+  - **Exact filenames:** `.netrc`, `_netrc`, `.htpasswd`, `.npmrc`,
+    `.pypirc`, `id_rsa`, `id_dsa`, `id_ecdsa`, `id_ed25519`,
+    `service-account.json`.
+  - **Config files with a secret keyword in the name:** any file with a
+    config extension (`.json`, `.yaml`, `.yml`, `.toml`, `.ini`, `.cfg`,
+    `.conf`, `.config`, `.properties`, `.env`, `.txt`, `.xml`, `.csv`,
+    `.tsv`, or no extension) whose name contains a `secret` /
+    `credential` / `password` / `passwd` / `token` / `apikey` segment
+    as a whole word — `secrets.yaml`, `api_token.json`,
+    `db_password.txt`, `credentials.json`. Matching is word-segment,
+    not substring: the keyword must be delimited by `.`, `_`, `-`, or
+    a string boundary. The config-extension gate is deliberate — source
+    files like `password-validator.ts`, `secret_loader.py`, and
+    `token_manager.go` are never skipped, even though their names match
+    the pattern.
+
+  Code Merge is often used to feed code to LLMs, and leaking a private
+  key or API token into a prompt is a security incident — not a bug
+  you can undo. **Add File** still asks for confirmation before
+  including one of these files explicitly.
+
+### Changed
+- **Selections now capture whole lines.** Previously the initial
+  content was the exact character range the user selected, while the
+  first live-sync pass re-sliced it to whole lines (see
+  `FileSync.sliceForItem`). The header promised `[L6-L11]` but the
+  body started mid-line, and the content silently changed the moment
+  the file was edited. `Add Selection` now expands the range to whole
+  lines up front, so the initial content is byte-identical to what the
+  first sync produces. A selection ending at column 0 of a later line
+  (e.g. dragging from line 6 col 0 to line 7 col 0) now correctly
+  reports `[L6-L6]` instead of `[L6-L7]`.
+
+- **CRLF/CR normalization for selections.** The initial selection
+  content is now normalized to LF, matching what
+  `FileSync.applyContent` produces. On Windows files saved with CRLF,
+  the content-size counter no longer shifts by a few bytes after the
+  first keystroke.
+
+- **`switchWorkspace` removed from the Workspaces view right-click
+  menu.** The 0.6.0 changelog claimed it was "intentionally not in the
+  right-click menu", but the `view/item/context` entry was still
+  contributed. Clicking the workspace item already switches; the
+  redundant menu entry is gone.
+
+- **Context-only commands hidden from the Command Palette.**
+  `addFile`, `addFolder`, `deleteItem`, `ignorePath`, `switchWorkspace`,
+  and `clearWorkspace` all depend on a `uri` or tree `node` argument.
+  Running them from the palette without arguments did nothing —
+  `switchWorkspace` and `clearWorkspace` returned silently, which was
+  the worst possible UX. They now only appear where they make sense:
+  the Explorer right-click menu, tree-item inline buttons, the
+  workspace-item click, and their keybindings.
+
+- **`Formatters` category removed.** Code Merge isn't a formatter —
+  it's a code-context tool. `Other` is the only accurate category.
+
+### Fixed
+- **README example now matches actual output.** The example showed
+  `(typescript)` for a whole-file item; the extension emits the file
+  extension — `(ts)`. Selections still show the VS Code language ID
+  (`(typescript)`), which is unchanged.
+
+### Docs
+- **New notes in the README's _Managing ignore rules_ section:**
+  - Sensitive files are skipped by default, with the full list of
+    extensions, exact filenames, and the pattern.
+  - Editing `.code-mergeignore` by hand doesn't reload rules — run
+    **Code Merge: Reload Ignore Rules** to apply changes.
+- **Live sync feature bullet now mentions the atomic-replace edge
+  case.** Tools that write-to-temp + rename (`prettier --write`,
+  `sed -i`, some codemods) can make VS Code report a delete-and-create
+  pair, and the item may be dropped by mistake. If that happens, just
+  re-add it.
+- README condensed overall; **Performance tips** reduced from five
+  subsections to four bullets.
+
+---
+
 ## [0.7.0] — 2026-09-22
 
 ### Changed
@@ -280,7 +367,7 @@
 
 ---
 
-## [0.3.0] — 2025-XX-XX
+## [0.3.0] — 2026-09-18
 
 ### Added
 - **Configurable ignore rules** — new settings under `code-merge.ignore.*`
@@ -321,7 +408,7 @@
 
 ---
 
-## [0.2.0] — 2025-XX-XX
+## [0.2.0] — 2026-09-18
 
 ### Added
 - **Live sync** — item content is kept in step with the file system and
@@ -362,5 +449,6 @@
 
 ---
 
-## [0.1.0] — 2025-XX-XX
-...
+## [0.1.0] — 2026-09-17
+
+"Initial release".

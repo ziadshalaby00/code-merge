@@ -46,9 +46,32 @@ export function addSelectionCommand(store: MergeStore): vscode.Disposable {
     let lastLabel = '';
 
     for (const sel of selections) {
-      const startLine = sel.start.line + 1;
-      const endLine = sel.end.line + 1;
-      const content = doc.getText(sel);
+      // Expand to whole lines. The initial content must match what
+      // FileSync will produce on the first sync (see `sliceForItem`),
+      // otherwise the preview silently changes the moment the file is
+      // edited — the header says [L6-L11] but the body starts mid-line.
+      const startLine0 = sel.start.line;
+
+      // A selection ending at column 0 of a later line actually covers
+      // up to (and including) the previous line — e.g. dragging from
+      // line 6 col 0 to line 7 col 0 means "line 6 and its newline".
+      const endLine0 =
+        sel.end.character === 0 && sel.end.line > sel.start.line
+          ? sel.end.line - 1
+          : sel.end.line;
+
+      const startLine = startLine0 + 1;
+      const endLine = endLine0 + 1;
+
+      const fullLineRange = new vscode.Range(
+        new vscode.Position(startLine0, 0),
+        new vscode.Position(endLine0, doc.lineAt(endLine0).text.length)
+      );
+
+      // Normalize CRLF/CR to LF — same normalization FileSync applies
+      // before slicing, so the initial content and the first synced
+      // content are byte-identical for an unedited file.
+      const content = doc.getText(fullLineRange).replace(/\r\n?/g, '\n');
 
       if (Buffer.byteLength(content, 'utf8') > maxFileSize) {
         vscode.window.showWarningMessage(
